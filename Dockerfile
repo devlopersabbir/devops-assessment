@@ -1,7 +1,9 @@
-# Stage 1: Build Stage
-FROM golang:1.27.1-alpine AS builder
+# Stage 1: Build Stage (runs natively on host CPU and cross-compiles via TARGETOS/TARGETARCH)
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS builder
 
 ARG APP_VERSION=1.0.0
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
 
 WORKDIR /src
 
@@ -16,13 +18,13 @@ RUN go mod download && go mod verify
 COPY app/ ./
 
 # Build a statically linked, stripped binary for minimal size and security
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath \
     -ldflags="-w -s" \
     -o /src/server .
 
 # Stage 2: Runtime Stage
-FROM alpine:3.21.3 AS runtime
+FROM alpine:3.21 AS runtime
 
 ARG APP_VERSION=1.0.0
 
@@ -38,8 +40,10 @@ ENV APP_ENV=production \
     PORT=8080 \
     GIN_MODE=release
 
-# Install CA certificates and create a dedicated non-root user and group with no shell access
-RUN apk add --no-cache ca-certificates && \
+# Upgrade base Alpine packages for security patches, install CA certificates, and create non-root user
+# hadolint ignore=DL3017,DL3018
+RUN apk upgrade --no-cache && \
+    apk add --no-cache ca-certificates && \
     addgroup -S -g 10001 appgroup && \
     adduser -S -u 10001 -G appgroup -h /app -s /sbin/nologin appuser && \
     mkdir -p /app && \
