@@ -74,6 +74,7 @@ jobs:
             echo "::error::Invalid semantic version '${VERSION}' in ${APP_DIR}/VERSION"
             exit 1
           fi
+
   # Go Linting & Unit Tests
   go-lint-test:
     name: Go Lint, Unit Tests & Secret Detection
@@ -134,3 +135,36 @@ jobs:
           name: go-coverage-report
           path: ${{ env.APP_DIR }}/coverage.out
           retention-days: 3
+
+  # Dockerfile Linting with Hadolint
+  hadolint:
+    name: Dockerfile Lint (Hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run Hadolint on Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+          ignore: DL3018
+
+  # ShellCheck Linting
+  shellcheck:
+    name: Shell Script Lint (ShellCheck)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run ShellCheck on all shell scripts
+        run: |
+          mapfile -t SCRIPTS < <(find . -type f -name "*.sh" -not -path "./.git/*")
+          if [ "${#SCRIPTS[@]}" -eq 0 ]; then
+            echo "No .sh scripts found to lint; skipping ShellCheck."
+            exit 0
+          fi
+          echo "Linting ${#SCRIPTS[@]} shell script(s): ${SCRIPTS[*]}"
+          shellcheck --severity=warning "${SCRIPTS[@]}"

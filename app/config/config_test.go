@@ -10,12 +10,16 @@ func TestLoadDefaults(t *testing.T) {
 	saved := make(map[string]string)
 	for _, k := range keys {
 		saved[k] = os.Getenv(k)
-		os.Unsetenv(k)
+		if err := os.Unsetenv(k); err != nil {
+			t.Fatalf("failed to unset env %s: %v", k, err)
+		}
 	}
 	defer func() {
 		for k, v := range saved {
 			if v != "" {
-				os.Setenv(k, v)
+				if err := os.Setenv(k, v); err != nil {
+					t.Errorf("failed to restore env %s: %v", k, err)
+				}
 			}
 		}
 	}()
