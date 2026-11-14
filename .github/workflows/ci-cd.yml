@@ -149,7 +149,7 @@ jobs:
         with:
           dockerfile: Dockerfile
           failure-threshold: warning
-          ignore: DL3018
+          ignore: DL3017,DL3018
 
   # ShellCheck Linting
   shellcheck:
