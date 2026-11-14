@@ -1,5 +1,5 @@
-# Stage 1: Build Stage
-FROM golang:1.27-alpine AS builder
+# Stage 1: Build Stage (runs natively on host CPU and cross-compiles via TARGETOS/TARGETARCH)
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS builder
 
 ARG APP_VERSION=1.0.0
 ARG TARGETOS=linux
