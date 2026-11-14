@@ -28,7 +28,7 @@ ARG APP_VERSION=1.0.0
 
 # OCI standard image metadata labels
 LABEL org.opencontainers.image.title="devops-assessment-api" \
-      org.opencontainers.image.description="Lightweight Go Gin backend server with health check and Prometheus metrics" \
+      org.opencontainers.image.description="Lightweight Go Gin backend server" \
       org.opencontainers.image.version="${APP_VERSION}"
 
 # Environment variables aligned with app/.env
