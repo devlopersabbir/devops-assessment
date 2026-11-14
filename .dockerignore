@@ -1,0 +1,11 @@
+.git
+.github
+.gitignore
+.env
+.env.*
+*.md
+coverage.out
+tmp/
+bin/
+vendor/
+terraform/.terraform/
