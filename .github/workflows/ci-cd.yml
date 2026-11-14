@@ -168,3 +168,22 @@ jobs:
           fi
           echo "Linting ${#SCRIPTS[@]} shell script(s): ${SCRIPTS[*]}"
           shellcheck --severity=warning "${SCRIPTS[@]}"
+
+  # Trivy Filesystem & Configuration Vulnerability Scanning
+  trivy-fs-scan:
+    name: Trivy Vulnerability Scan (Filesystem & Config)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run Trivy filesystem and misconfiguration scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
