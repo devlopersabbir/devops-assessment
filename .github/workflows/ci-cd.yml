@@ -74,3 +74,63 @@ jobs:
             echo "::error::Invalid semantic version '${VERSION}' in ${APP_DIR}/VERSION"
             exit 1
           fi
+  # Go Linting & Unit Tests
+  go-lint-test:
+    name: Go Lint, Unit Tests & Secret Detection
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks secret detection
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ env.APP_DIR }}/go.mod
+          cache-dependency-path: ${{ env.APP_DIR }}/go.sum
+
+      - name: Verify Go dependencies
+        run: |
+          go mod download
+          go mod verify
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Check Go formatting (gofmt)
+        run: |
+          UNFORMATTED=$(gofmt -s -l .)
+          if [ -n "${UNFORMATTED}" ]; then
+            echo "::error::The following Go files are not properly formatted:"
+            echo "${UNFORMATTED}"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          working-directory: ${{ env.APP_DIR }}
+
+      - name: Run unit tests with race detector & coverage
+        run: |
+          go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-coverage-report
+          path: ${{ env.APP_DIR }}/coverage.out
+          retention-days: 3
