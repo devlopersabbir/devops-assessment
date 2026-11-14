@@ -228,8 +228,8 @@ jobs:
           images: ${{ steps.vars.outputs.image_repo }}
           tags: |
             type=raw,value=${{ steps.vars.outputs.version }}
-            type=raw,value=${{ steps.vars.outputs.version }}-${{ github.sha }},enable=false
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=sha-
+            type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
@@ -266,7 +266,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build and push multi-architecture Docker image (linux/amd64, linux/arm64)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
