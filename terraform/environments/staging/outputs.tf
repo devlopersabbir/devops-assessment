@@ -27,3 +27,13 @@ output "ssm_session_command" {
   description = "AWS CLI command to connect to the EC2 instance via SSM Session Manager"
   value       = "aws ssm start-session --target ${module.ec2.instance_id} --region ${var.aws_region}${var.aws_profile != "" ? " --profile ${var.aws_profile}" : ""}"
 }
+
+output "alb_dns_name" {
+  description = "Public DNS name of the Application Load Balancer"
+  value       = module.alb.alb_dns_name
+}
+
+output "alb_url" {
+  description = "Public HTTP URL of the Application Load Balancer"
+  value       = "http://${module.alb.alb_dns_name}"
+}
