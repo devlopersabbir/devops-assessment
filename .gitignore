@@ -1,2 +1,31 @@
 .env
 bin
+
+# Local .terraform directories (provider binaries and module caches)
+**/.terraform/*
+
+# State files (often created locally during bootstrap)
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+
+# Saved plan files (can contain cleartext secrets)
+*tfplan*
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash logs and CLI configs
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
+
+.secrets
