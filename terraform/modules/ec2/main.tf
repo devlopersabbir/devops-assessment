@@ -8,7 +8,7 @@ resource "aws_instance" "this" {
   key_name               = var.key_name
 
   user_data                   = var.user_data
-  user_data_replace_on_change = false
+  user_data_replace_on_change = true
 
   monitoring = var.enable_monitoring
 
@@ -37,7 +37,6 @@ resource "aws_instance" "this" {
   })
 
   lifecycle {
-    prevent_destroy = true
     ignore_changes = [
       ami,
     ]

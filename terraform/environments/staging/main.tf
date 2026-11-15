@@ -1,22 +1,8 @@
 # Local Variable
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
-
-  # User data: Ensure AWS SSM Agent is installed and running on Debian 12/13
-  ec2_bootstrap_user_data = <<-EOF
-    #!/bin/bash
-    set -euxo pipefail
-
-    if ! systemctl is-active --quiet amazon-ssm-agent; then
-      apt-get update -y
-      apt-get install -y curl wget
-      ARCH="$(dpkg --print-architecture)"
-      curl -fsSL "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_$${ARCH}/amazon-ssm-agent.deb" -o /tmp/amazon-ssm-agent.deb
-      dpkg -i /tmp/amazon-ssm-agent.deb
-      rm -f /tmp/amazon-ssm-agent.deb
-      systemctl enable --now amazon-ssm-agent
-    fi
-  EOF
+  name_prefix             = "${var.project_name}-${var.environment}"
+  ec2_bootstrap_user_data = replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n")
+  
 }
 
 # custom vpc
@@ -60,4 +46,10 @@ module "ec2" {
   key_name             = var.key_name
   root_volume_size     = var.root_volume_size
   user_data            = local.ec2_bootstrap_user_data
+
+  depends_on = [
+    module.vpc,
+    module.iam,
+    module.security_groups,
+  ]
 }
