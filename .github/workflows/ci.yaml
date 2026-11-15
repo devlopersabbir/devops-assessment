@@ -1,0 +1,174 @@
+name: CI - Validation
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  APP_DIR: app
+
+jobs:
+  # 1. Validate PR metadata and repository structure.
+  pr-validation:
+    name: Pull Request Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR metadata
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Ensure that every PR has a meaningful title.
+          if [ -z "${PR_TITLE}" ] || [ "${#PR_TITLE}" -lt 3 ]; then
+            echo "::error::PR title must be at least 3 characters."
+            exit 1
+          fi
+
+      - name: Check merge conflict markers
+        run: |
+          if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- . ':(exclude).github/workflows/*'; then
+            echo "::error::Unresolved conflict markers found."
+            exit 1
+          fi
+
+      - name: Validate application version
+        run: |
+          VERSION=$(tr -d '[:space:]' < "${APP_DIR}/VERSION")
+
+          if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Invalid semantic version."
+            exit 1
+          fi
+
+  # 2. Go linting, dependency validation and unit tests.
+  go-lint-test:
+    name: Go Lint and Unit Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks secret detection
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+
+      - name: Verify dependencies
+        run: |
+          go mod download
+          go mod verify
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Check Go formatting
+        run: |
+          UNFORMATTED=$(gofmt -s -l .)
+
+          if [ -n "${UNFORMATTED}" ]; then
+            echo "${UNFORMATTED}"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          working-directory: app
+
+      - name: Run unit tests
+        run: |
+          go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-coverage-report
+          path: app/coverage.out
+          retention-days: 3
+
+  # 3. Dockerfile linting.
+  hadolint:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+          ignore: DL3017,DL3018
+
+  # 4. Shell script linting.
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          mapfile -t SCRIPTS < <(
+            find . -type f -name "*.sh" -not -path "./.git/*"
+          )
+
+          if [ "${#SCRIPTS[@]}" -eq 0 ]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+
+          shellcheck --severity=warning "${SCRIPTS[@]}"
+
+  # 5. Filesystem and configuration vulnerability scanning.
+  trivy-fs-scan:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"

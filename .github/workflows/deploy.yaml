@@ -1,0 +1,43 @@
+name: Deploy - EC2
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Exact Docker image to deploy"
+        required: true
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Exact Docker image to deploy"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CONTAINER_NAME: devops-assessment-api
+  APP_PORT: "8080"
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate image reference
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          # Never deploy an empty or missing image reference.
+          if [ -z "${IMAGE_TAG}" ]; then
+            echo "::error::Docker image reference is required."
+            exit 1
+          fi
+
+      - name: ready to deploy
+        run: |
+          echo "ready to deploy"

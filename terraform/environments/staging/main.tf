@@ -1,24 +1,24 @@
 # Local Variable
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
-
-  # User data
-  ec2_bootstrap_user_data = <<-EOF
-      echo "hello world"
-      EOF
+  ec2_bootstrap_user_data = join("\n", [
+    replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n"),
+    replace(file("${path.module}/../../scripts/initialize-server.sh"), "\r\n", "\n"),
+  ])
 }
 
-# custom vpc
+# 1. Custom VPC (Multi-AZ Public & Private Subnets + NAT Gateway)
 module "vpc" {
   source = "../../modules/vpc"
 
   project_name         = var.project_name
   environment          = var.environment
   vpc_cidr             = var.vpc_cidr
+  public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
 }
 
-# Security Groups Module
+# 2. Security Groups Module (ALB SG + Private EC2 Server SG)
 module "security_groups" {
   source = "../../modules/security-groups"
 
@@ -27,7 +27,7 @@ module "security_groups" {
   vpc_id       = module.vpc.vpc_id
 }
 
-# IAM Roles, Instance Profiles
+# 3. IAM Roles & Instance Profiles (SSM Session Manager)
 module "iam" {
   source = "../../modules/iam"
 
@@ -35,17 +35,43 @@ module "iam" {
   environment  = var.environment
 }
 
-# ec2 instance
-module "ec2" {
-  source = "../../modules/ec2"
+# 4. Application Load Balancer Module (Public Subnets)
+module "alb" {
+  source = "../../modules/alb"
 
-  instance_name        = "${local.name_prefix}-server"
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = module.vpc.vpc_id
+  public_subnet_ids     = module.vpc.public_subnet_ids
+  alb_security_group_id = module.security_groups.alb_security_group_id
+}
+
+# 5. Auto Scaling Group Module (Private Subnets across Availability Zones)
+module "asg" {
+  source = "../../modules/asg"
+
+  project_name         = var.project_name
+  environment          = var.environment
   ami_id               = var.ami_id
   instance_type        = var.instance_type
-  subnet_id            = module.vpc.private_subnet_ids[0]
+  private_subnet_ids   = module.vpc.private_subnet_ids
   security_group_ids   = [module.security_groups.security_group_id]
   iam_instance_profile = module.iam.instance_profile_name
+  target_group_arns    = [module.alb.target_group_arn]
   key_name             = var.key_name
   root_volume_size     = var.root_volume_size
+  root_volume_type     = var.root_volume_type
+  enable_monitoring    = var.enable_monitoring
   user_data            = local.ec2_bootstrap_user_data
+
+  min_size         = var.asg_min_size
+  max_size         = var.asg_max_size
+  desired_capacity = var.asg_desired_capacity
+
+  depends_on = [
+    module.vpc,
+    module.iam,
+    module.security_groups,
+    module.alb,
+  ]
 }

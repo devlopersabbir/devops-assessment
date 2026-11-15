@@ -1,0 +1,124 @@
+name: CD - Docker Build and Publish
+
+on:
+  workflow_call:
+    outputs:
+      image_tag:
+        description: "Full immutable Docker image reference"
+        value: ${{ jobs.build-and-push.outputs.image_tag }}
+
+      version:
+        description: "Application semantic version"
+        value: ${{ jobs.build-and-push.outputs.version }}
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  APP_DIR: app
+
+jobs:
+  build-and-push:
+    name: Build, Scan and Publish
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+      version: ${{ steps.vars.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Generate a unique image reference.
+      - name: Generate Docker image metadata
+        id: vars
+        run: |
+          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          VERSION=$(tr -d '[:space:]' < "${APP_DIR}/VERSION")
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+
+          echo "image_repo=${REGISTRY}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          # SHA-based tags prevent accidental image replacement.
+          echo "image_tag=${REGISTRY}/${IMAGE_LOWER}:${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Build a local image first so Trivy can scan it.
+      - name: Build image for security scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          build-args: |
+            APP_VERSION=${{ steps.vars.outputs.version }}
+          tags: ${{ steps.vars.outputs.image_tag }}
+          cache-from: type=gha
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.vars.outputs.image_tag }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      # Generate additional tags for the published image.
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.vars.outputs.image_repo }}
+          tags: |
+            type=raw,value=${{ steps.vars.outputs.version }}
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish both AMD64 and ARM64 images.
+      - name: Build and push multi-architecture image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            APP_VERSION=${{ steps.vars.outputs.version }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.vars.outputs.image_tag }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Display published image
+        run: |
+          echo "Successfully published:"
+          echo "${{ steps.vars.outputs.image_tag }}"
+
+
