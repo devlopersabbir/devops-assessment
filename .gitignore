@@ -29,3 +29,10 @@ crash.*.log
 terraform.rc
 
 .secrets
+
+# Kubernetes secret manifests 
+k8s/dotenv-secret.yaml
+k8s/*secret*.yaml
+k8s/*secret*.yml
+!k8s/*.example
+
