@@ -32,3 +32,33 @@ output "alb_url" {
   description = "Public HTTP URL of the Application Load Balancer"
   value       = "http://${module.alb.alb_dns_name}"
 }
+
+output "cloudwatch_dashboard_url" {
+  description = "AWS Console URL for the CloudWatch monitoring dashboard"
+  value       = module.cloudwatch.dashboard_url
+}
+
+output "sns_alerts_topic_arn" {
+  description = "ARN of the encrypted SNS topic receiving CloudWatch alarms"
+  value       = module.cloudwatch.sns_topic_arn
+}
+
+output "monitoring_kms_key_arn" {
+  description = "ARN of the Customer Managed KMS key for monitoring encryption"
+  value       = module.cloudwatch.kms_key_arn
+}
+
+output "cw_agent_ssm_parameter_name" {
+  description = "SSM Parameter Store name for the CloudWatch Agent configuration"
+  value       = module.cloudwatch.agent_ssm_parameter_name
+}
+
+output "cloudwatch_log_groups" {
+  description = "Map of CloudWatch Log Group names"
+  value       = module.cloudwatch.log_group_names
+}
+
+output "discord_notifier_lambda_name" {
+  description = "Name of the Discord webhook Lambda forwarder"
+  value       = module.cloudwatch.discord_notifier_lambda_name
+}

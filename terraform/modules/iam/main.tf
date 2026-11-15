@@ -25,6 +25,14 @@ resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Attach AWS-managed policy for CloudWatch Agent metrics, logs, and SSM parameter config
+resource "aws_iam_role_policy_attachment" "cloudwatch_agent_server" {
+  count = var.enable_cloudwatch_agent ? 1 : 0
+
+  role       = aws_iam_role.server.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
 resource "aws_iam_instance_profile" "server" {
   name = "${var.project_name}-${var.environment}-server-profile"
   role = aws_iam_role.server.name

@@ -73,9 +73,11 @@ resource "aws_autoscaling_group" "this" {
   health_check_type         = var.health_check_type
   health_check_grace_period = 300
 
-  min_size         = var.min_size
-  max_size         = var.max_size
-  desired_capacity = var.desired_capacity
+  min_size            = var.min_size
+  max_size            = var.max_size
+  desired_capacity    = var.desired_capacity
+  enabled_metrics     = var.enabled_metrics
+  metrics_granularity = var.metrics_granularity
 
   launch_template {
     id      = aws_launch_template.this.id

@@ -8,6 +8,12 @@ variable "environment" {
   type        = string
 }
 
+variable "enable_cloudwatch_agent" {
+  description = "Attach CloudWatchAgentServerPolicy so EC2 instances can push metrics and logs to CloudWatch"
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Common resource tags"
   type        = map(string)

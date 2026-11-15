@@ -99,9 +99,9 @@ variable "root_volume_type" {
 }
 
 variable "enable_monitoring" {
-  description = "Enable detailed CloudWatch monitoring"
+  description = "Enable detailed 1-minute CloudWatch monitoring on EC2 instances"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "user_data" {
@@ -126,4 +126,48 @@ variable "asg_desired_capacity" {
   description = "Desired number of instances in the Auto Scaling Group"
   type        = number
   default     = 2
+}
+
+# ------------ AWS CloudWatch Monitoring ----------- #
+variable "enable_cloudwatch_agent" {
+  description = "Install and configure CloudWatch Agent on EC2 instances for OS and Docker log/metric collection"
+  type        = bool
+  default     = true
+}
+
+variable "log_retention_days" {
+  description = "Number of days to retain logs in CloudWatch Log Groups"
+  type        = number
+  default     = 30
+}
+
+variable "kms_deletion_window_in_days" {
+  description = "Waiting period in days before KMS deletes the monitoring CMK upon destruction"
+  type        = number
+  default     = 7
+}
+
+variable "enable_vpc_flow_logs" {
+  description = "Enable VPC Flow Logs shipping to CloudWatch Logs"
+  type        = bool
+  default     = true
+}
+
+variable "enable_discord_notifications" {
+  description = "Deploy Lambda forwarder to send CloudWatch Alarm notifications to Discord"
+  type        = bool
+  default     = true
+}
+
+variable "discord_webhook_url" {
+  description = "Discord webhook URL for CloudWatch alarm notifications (set via tfvars or TF_VAR_discord_webhook_url)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "alert_emails" {
+  description = "Optional list of email addresses to subscribe to CloudWatch Alarm SNS notifications"
+  type        = list(string)
+  default     = []
 }

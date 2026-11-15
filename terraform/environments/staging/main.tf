@@ -1,10 +1,13 @@
 # Local Variable
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
-  ec2_bootstrap_user_data = join("\n", [
+  name_prefix                 = "${var.project_name}-${var.environment}"
+  cw_agent_ssm_parameter_name = "AmazonCloudWatch-${local.name_prefix}-agent-config"
+  ec2_bootstrap_user_data = join("\n", compact([
     replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n"),
     replace(file("${path.module}/../../scripts/initialize-server.sh"), "\r\n", "\n"),
-  ])
+    var.enable_cloudwatch_agent ? "export CW_AGENT_SSM_PARAM='${local.cw_agent_ssm_parameter_name}'" : "",
+    var.enable_cloudwatch_agent ? replace(file("${path.module}/../../scripts/install-cloudwatch-agent.sh"), "\r\n", "\n") : "",
+  ]))
 }
 
 # 1. Custom VPC (Multi-AZ Public & Private Subnets + NAT Gateway)
@@ -27,12 +30,13 @@ module "security_groups" {
   vpc_id       = module.vpc.vpc_id
 }
 
-# 3. IAM Roles & Instance Profiles (SSM Session Manager)
+# 3. IAM Roles & Instance Profiles (SSM Session Manager + CloudWatch Agent)
 module "iam" {
   source = "../../modules/iam"
 
-  project_name = var.project_name
-  environment  = var.environment
+  project_name            = var.project_name
+  environment             = var.environment
+  enable_cloudwatch_agent = var.enable_cloudwatch_agent
 }
 
 # 4. Application Load Balancer Module (Public Subnets)
@@ -73,5 +77,35 @@ module "asg" {
     module.iam,
     module.security_groups,
     module.alb,
+  ]
+}
+
+# 6. CloudWatch Monitoring Module (Dashboard, Alarms, Logs, VPC Flow Logs, KMS, SNS -> Discord)
+module "cloudwatch" {
+  source = "../../modules/cloudwatch"
+
+  project_name                 = var.project_name
+  environment                  = var.environment
+  aws_region                   = var.aws_region
+  vpc_id                       = module.vpc.vpc_id
+  nat_gateway_id               = module.vpc.nat_gateway_id
+  alb_arn_suffix               = module.alb.alb_arn_suffix
+  target_group_arn_suffix      = module.alb.target_group_arn_suffix
+  asg_name                     = module.asg.asg_name
+  asg_min_size                 = var.asg_min_size
+  instance_type                = var.instance_type
+  agent_ssm_parameter_name     = local.cw_agent_ssm_parameter_name
+  log_retention_days           = var.log_retention_days
+  kms_deletion_window_in_days  = var.kms_deletion_window_in_days
+  enable_vpc_flow_logs         = var.enable_vpc_flow_logs
+  enable_discord_notifications = var.enable_discord_notifications
+  discord_webhook_url          = var.discord_webhook_url
+  alert_emails                 = var.alert_emails
+  tags                         = var.tags
+
+  depends_on = [
+    module.vpc,
+    module.alb,
+    module.asg,
   ]
 }
