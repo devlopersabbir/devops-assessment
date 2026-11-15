@@ -102,6 +102,11 @@ resource "aws_autoscaling_group" "this" {
     value               = var.environment
     propagate_at_launch = true
   }
+
+  # Allow the CPU target-tracking policy to manage desired_capacity without Terraform reverting it
+  lifecycle {
+    ignore_changes = [desired_capacity]
+  }
 }
 
 # 3. CPU Target Tracking Auto Scaling Policy
