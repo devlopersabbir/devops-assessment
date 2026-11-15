@@ -4,11 +4,15 @@ on:
   workflow_call:
     inputs:
       status:
-        description: "Pipeline status (success or failure)"
+        description: "Notification status (success or failure)"
+        required: true
+        type: string
+      stage:
+        description: "Name of the stage (e.g., CD (Docker Build & Publish) or Deploy to EC2)"
         required: true
         type: string
       image_tag:
-        description: "Docker image tag built by CD"
+        description: "Deployed Docker image tag"
         required: false
         type: string
         default: "N/A"
@@ -16,12 +20,17 @@ on:
   workflow_dispatch:
     inputs:
       status:
-        description: "Pipeline status (success or failure)"
+        description: "Notification status (success or failure)"
         required: false
         type: string
         default: "success"
+      stage:
+        description: "Name of the stage"
+        required: false
+        type: string
+        default: "Deploy to EC2"
       image_tag:
-        description: "Docker image tag"
+        description: "Deployed Docker image tag"
         required: false
         type: string
         default: "manual-run"
@@ -35,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Notify Discord on Success
+      - name: Notify Discord on Deployment Success
         if: inputs.status == 'success'
         uses: devlopersabbir/action-notifier@v1.2.0
         with:
@@ -43,7 +52,7 @@ jobs:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           status: success
           message: |
-            **✅ CD & Deployment Succeeded!**
+            **✅ ${{ inputs.stage }} Succeeded!**
             Repository: `${{ github.repository }}`
             Image: `${{ inputs.image_tag }}`
             Commit: `${{ github.sha }}`
@@ -56,7 +65,7 @@ jobs:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           status: failure
           message: |
-            **🚨 CD / Production Deployment Failed!**
+            **🚨 ${{ inputs.stage }} Failed!**
             Repository: `${{ github.repository }}`
             Commit: `${{ github.sha }}`
             Please inspect the workflow logs immediately.

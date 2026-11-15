@@ -28,19 +28,19 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Run all CI validations.
+  # 1. Run all CI validations.
   ci:
     name: CI Validation
     uses: ./.github/workflows/ci.yaml
 
-  # Build, scan and publish Docker image. (skip push on pull request)
+  # 2. Build, scan and publish Docker image. (skip push on pull request)
   cd:
     name: Docker Build and Publish
     needs: ci
     if: github.event_name != 'pull_request'
     uses: ./.github/workflows/cd.yaml
 
-  # Deploy only after successful image publishing.
+  # 3. Deploy only after successful image publishing.
   deploy:
     name: Deploy to EC2
     needs: cd
@@ -54,15 +54,16 @@ jobs:
     # Pass the required deployment secrets.
     secrets: inherit
 
-  # Separate Notification Job (only runs when CD pipeline executes)
+  # 4. Trigger Discord Notification on CD failure, Deploy failure, or Deploy success
   notify:
     name: Discord Notification
     needs:
       - cd
       - deploy
-    if: always() && github.event_name != 'pull_request' && (needs.cd.result == 'success' || needs.cd.result == 'failure')
+    if: always() && github.event_name != 'pull_request' && (needs.cd.result == 'failure' || needs.deploy.result == 'failure' || needs.deploy.result == 'success')
     uses: ./.github/workflows/notify.yaml
     with:
-      status: ${{ (needs.cd.result == 'success' && needs.deploy.result == 'success') && 'success' || 'failure' }}
+      status: ${{ needs.deploy.result == 'success' && 'success' || 'failure' }}
+      stage: ${{ needs.cd.result == 'failure' && 'CD (Docker Build & Publish)' || 'Deploy to EC2' }}
       image_tag: ${{ fromJSON(toJSON(needs.cd.outputs)).image_tag }}
     secrets: inherit
