@@ -19,12 +19,16 @@ permissions:
   contents: read
 
 env:
+  AWS_REGION: ap-south-1
+  ASG_NAME: devops-assessment-staging-asg
+  ALB_NAME: devops-assessment-staging-alb
+  INSTANCE_TAG_NAME: devops-assessment-staging-server
   CONTAINER_NAME: devops-assessment-api
   APP_PORT: "8080"
 
 jobs:
   deploy:
-    name: Deploy to EC2
+    name: Zero-Downtime Rolling Deploy to EC2
     runs-on: ubuntu-latest
 
     steps:
@@ -32,12 +36,159 @@ jobs:
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
-          # Never deploy an empty or missing image reference.
           if [ -z "${IMAGE_TAG}" ]; then
             echo "::error::Docker image reference is required."
             exit 1
           fi
+          echo "Deploying image: ${IMAGE_TAG}"
 
-      - name: ready to deploy
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || secrets.ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || secrets.SECRET_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Discover target EC2 instances & ALB Target Group
+        id: discover
         run: |
-          echo "ready to deploy"
+          INSTANCE_IDS=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Name,Values=${INSTANCE_TAG_NAME}" \
+              "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[].InstanceId" \
+            --output text | tr '\t' ' ' | xargs)
+
+          if [ -z "${INSTANCE_IDS}" ]; then
+            echo "::error::No running EC2 instances found with tag Name=${INSTANCE_TAG_NAME}"
+            exit 1
+          fi
+
+          TG_ARN=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "${ASG_NAME}" \
+            --query "AutoScalingGroups[0].TargetGroupARNs[0]" \
+            --output text 2>/dev/null || true)
+
+          if [ "${TG_ARN}" = "None" ]; then
+            TG_ARN=""
+          fi
+
+          echo "Found running EC2 instance(s): ${INSTANCE_IDS}"
+          echo "Target Group ARN: ${TG_ARN:-none}"
+          echo "instance_ids=${INSTANCE_IDS}" >> "$GITHUB_OUTPUT"
+          echo "tg_arn=${TG_ARN}" >> "$GITHUB_OUTPUT"
+
+      - name: Rolling Zero-Downtime Deploy via AWS SSM
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          INSTANCE_IDS: ${{ steps.discover.outputs.instance_ids }}
+          TG_ARN: ${{ steps.discover.outputs.tg_arn }}
+        run: |
+          set -euo pipefail
+
+          read -r -a IDS_ARRAY <<< "${INSTANCE_IDS}"
+          TOTAL="${#IDS_ARRAY[@]}"
+
+          PARAMS_JSON=$(jq -n \
+            --arg image_tag "${IMAGE_TAG}" \
+            --arg ghcr_user "${GHCR_USER}" \
+            --arg ghcr_token "${GHCR_TOKEN}" \
+            --arg container_name "${CONTAINER_NAME}" \
+            --arg app_port "${APP_PORT}" \
+            '{
+              commands: [
+                "set -euo pipefail",
+                "echo \"=== Logging into GHCR ===\"",
+                "echo \"" + $ghcr_token + "\" | sudo docker login ghcr.io -u \"" + $ghcr_user + "\" --password-stdin",
+                "PREV_IMAGE=$(sudo docker inspect --format=\"{{.Config.Image}}\" " + $container_name + " 2>/dev/null || true)",
+                "echo \"=== Pulling new image: " + $image_tag + " ===\"",
+                "sudo docker pull " + $image_tag,
+                "echo \"=== Replacing container: " + $container_name + " ===\"",
+                "sudo docker stop " + $container_name + " 2>/dev/null || true",
+                "sudo docker rm " + $container_name + " 2>/dev/null || true",
+                "sudo docker run -d --name " + $container_name + " --restart unless-stopped -p " + $app_port + ":" + $app_port + " -e PORT=" + $app_port + " -e LOG_LEVEL=info -e APP_ENV=production --memory=128m --cpus=0.50 --read-only --security-opt no-new-privileges:true --cap-drop ALL " + $image_tag,
+                "echo \"=== Verifying container health check on port " + $app_port + " ===\"",
+                "HEALTHY=false",
+                "for i in $(seq 1 15); do if curl -fsS http://127.0.0.1:" + $app_port + "/health >/dev/null 2>&1; then HEALTHY=true; break; fi; sleep 2; done",
+                "if [ \"$HEALTHY\" != \"true\" ]; then echo \"Health check failed! Rolling back...\"; sudo docker logs " + $container_name + " || true; sudo docker rm -f " + $container_name + " || true; if [ -n \"$PREV_IMAGE\" ]; then sudo docker run -d --name " + $container_name + " --restart unless-stopped -p " + $app_port + ":" + $app_port + " -e PORT=" + $app_port + " -e LOG_LEVEL=info -e APP_ENV=production --memory=128m --cpus=0.50 --read-only --security-opt no-new-privileges:true --cap-drop ALL \"$PREV_IMAGE\"; fi; sudo docker logout ghcr.io || true; exit 1; fi",
+                "echo \"=== Container is healthy! Cleaning up ===\"",
+                "sudo docker logout ghcr.io || true",
+                "sudo docker image prune -f >/dev/null 2>&1 || true",
+                "sudo docker ps --filter name=" + $container_name
+              ]
+            }')
+
+          # Rolling deployment: update one instance at a time
+          INDEX=0
+          for IID in "${IDS_ARRAY[@]}"; do
+            INDEX=$((INDEX + 1))
+            echo "===================================================="
+            echo "Rolling Deploy [${INDEX}/${TOTAL}] -> Instance: ${IID}"
+            echo "===================================================="
+
+            # Drain instance from ALB Target Group if multiple instances are running
+            if [ -n "${TG_ARN}" ] && [ "${TOTAL}" -gt 1 ]; then
+              echo "Draining ${IID} from ALB Target Group..."
+              aws elbv2 deregister-targets \
+                --target-group-arn "${TG_ARN}" \
+                --targets "Id=${IID},Port=${APP_PORT}" || true
+              sleep 15
+            fi
+
+            COMMAND_ID=$(aws ssm send-command \
+              --document-name "AWS-RunShellScript" \
+              --instance-ids "${IID}" \
+              --parameters "${PARAMS_JSON}" \
+              --comment "Rolling deploy ${IMAGE_TAG} to ${IID}" \
+              --query "Command.CommandId" \
+              --output text)
+
+            echo "Waiting for SSM Command ${COMMAND_ID} on ${IID}..."
+            aws ssm wait command-executed \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${IID}" || true
+
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${IID}" \
+              --query "Status" \
+              --output text)
+
+            echo "--- Output from ${IID} (Status: ${STATUS}) ---"
+            aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${IID}" \
+              --query "StandardOutputContent" \
+              --output text
+
+            if [ "${STATUS}" != "Success" ]; then
+              echo "::error::Deployment failed on instance ${IID} with status ${STATUS}"
+              aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${IID}" \
+                --query "StandardErrorContent" \
+                --output text >&2
+              # Re-register rolled-back instance before exiting
+              if [ -n "${TG_ARN}" ] && [ "${TOTAL}" -gt 1 ]; then
+                aws elbv2 register-targets \
+                  --target-group-arn "${TG_ARN}" \
+                  --targets "Id=${IID},Port=${APP_PORT}" || true
+              fi
+              exit 1
+            fi
+
+            # Re-register instance with ALB Target Group and wait until healthy
+            if [ -n "${TG_ARN}" ]; then
+              echo "Registering ${IID} back into ALB Target Group on port ${APP_PORT}..."
+              aws elbv2 register-targets \
+                --target-group-arn "${TG_ARN}" \
+                --targets "Id=${IID},Port=${APP_PORT}"
+              echo "Waiting for ${IID} to pass ALB Target Group health checks..."
+              aws elbv2 wait target-in-service \
+                --target-group-arn "${TG_ARN}" \
+                --targets "Id=${IID},Port=${APP_PORT}"
+              echo "Instance ${IID} is InService and healthy in ALB!"
+            fi
+          done

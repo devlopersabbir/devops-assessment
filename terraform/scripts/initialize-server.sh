@@ -41,15 +41,3 @@ sudo usermod -aG docker ssm-user
 if id -u admin >/dev/null 2>&1; then
   sudo usermod -aG docker admin
 fi
-
-# Install and configure Caddy Server as reverse proxy to container port 8080
-sudo apt install -y caddy
-
-sudo tee /etc/caddy/Caddyfile <<'EOF'
-:80 {
-    reverse_proxy 127.0.0.1:8080
-}
-EOF
-
-sudo systemctl enable --now caddy
-sudo systemctl reload caddy || sudo systemctl restart caddy
