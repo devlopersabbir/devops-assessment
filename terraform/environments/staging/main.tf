@@ -1,8 +1,10 @@
 # Local Variable
 locals {
-  name_prefix             = "${var.project_name}-${var.environment}"
-  ec2_bootstrap_user_data = replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n")
-  
+  name_prefix = "${var.project_name}-${var.environment}"
+  ec2_bootstrap_user_data = join("\n", [
+    replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n"),
+    replace(file("${path.module}/../../scripts/initialize-server.sh"), "\r\n", "\n"),
+  ])
 }
 
 # custom vpc
