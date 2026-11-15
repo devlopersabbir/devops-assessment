@@ -1,4 +1,5 @@
-# S3 Bucket for Terraform Remote State
+# 1. S3 Bucket for Terraform Remote State
+# trivy:ignore:AVD-AWS-0132 -- Using AES256 (SSE-S3) instead of a paid Customer Managed KMS key
 resource "aws_s3_bucket" "terraform_state" {
   for_each = toset(var.environments)
 
@@ -14,11 +15,11 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
-# 2. Bucket Versioning 
+# 2. Bucket Versioning
 resource "aws_s3_bucket_versioning" "terraform_state" {
-  for_each = aws_s3_bucket.terraform_state
+  for_each = toset(var.environments)
 
-  bucket = each.value.id
+  bucket = aws_s3_bucket.terraform_state[each.key].id
 
   versioning_configuration {
     status = "Enabled"
@@ -26,10 +27,11 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 }
 
 # 3. Server-Side Encryption Configuration
+# trivy:ignore:AVD-AWS-0132 -- Using AES256 (SSE-S3) instead of a paid Customer Managed KMS key
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  for_each = aws_s3_bucket.terraform_state
+  for_each = toset(var.environments)
 
-  bucket = each.value.id
+  bucket = aws_s3_bucket.terraform_state[each.key].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -41,9 +43,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 
 # 4. Block All Public Access
 resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  for_each = aws_s3_bucket.terraform_state
+  for_each = toset(var.environments)
 
-  bucket = each.value.id
+  bucket = aws_s3_bucket.terraform_state[each.key].id
 
   block_public_acls       = true
   block_public_policy     = true
