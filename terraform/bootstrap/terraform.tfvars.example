@@ -1,0 +1,4 @@
+aws_region   = "region-name"
+aws_profile  = "aw_profile_name"
+project_name = "project-name"
+environments = ["staging", "prod"]
