@@ -99,7 +99,8 @@ jobs:
             --arg app_port "${APP_PORT}" \
             '{
               commands: [
-                "set -euo pipefail",
+                "#!/usr/bin/env bash",
+                "set -eu",
                 "echo \"=== Logging into GHCR ===\"",
                 "echo \"" + $ghcr_token + "\" | sudo docker login ghcr.io -u \"" + $ghcr_user + "\" --password-stdin",
                 "PREV_IMAGE=$(sudo docker inspect --format=\"{{.Config.Image}}\" " + $container_name + " 2>/dev/null || true)",
