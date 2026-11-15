@@ -28,12 +28,19 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 
 sudo systemctl enable --now docker
 
-# Allow default Debian user (admin) and SSM user (ssm-user) to run docker without sudo
-for username in admin ssm-user; do
-  if id -u "${username}" >/dev/null 2>&1; then
-    sudo usermod -aG docker "${username}" || true
-  fi
-done
+# Docker Linux post-installation steps (allow running `docker ps` without sudo)
+sudo groupadd -f docker
+
+# Ensure ssm-user exists before first SSM login so it gets added to the docker group at boot
+if ! id -u ssm-user >/dev/null 2>&1; then
+  sudo useradd -m -s /bin/bash ssm-user
+fi
+
+sudo usermod -aG docker "${USER:-root}"
+sudo usermod -aG docker ssm-user
+if id -u admin >/dev/null 2>&1; then
+  sudo usermod -aG docker admin
+fi
 
 # Install and configure Caddy Server as reverse proxy to container port 8080
 sudo apt install -y caddy
