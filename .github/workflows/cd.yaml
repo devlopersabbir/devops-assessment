@@ -121,27 +121,4 @@ jobs:
           echo "Successfully published:"
           echo "${{ steps.vars.outputs.image_tag }}"
 
-      - name: Notify Discord on CD Failure
-        if: failure()
-        uses: devlopersabbir/action-notifier@v1.2.0
-        with:
-          provider: discord
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          status: ${{ job.status }}
-          message: |
-            **🚨 CD Docker Build & Publish Failed!**
-            Repository: `${{ github.repository }}`
-            Commit: `${{ github.sha }}`
-            Please inspect the workflow logs immediately.
-
-      - name: Notify Discord on CD Success
-        if: success()
-        uses: devlopersabbir/action-notifier@v1.2.0
-        with:
-          provider: discord
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          status: ${{ job.status }}
-          message: |
-            **✅ CD Docker Image Published Successfully!**
-            Image: `${{ steps.vars.outputs.image_tag }}`
 

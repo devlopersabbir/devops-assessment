@@ -1,0 +1,62 @@
+name: Notify - Discord
+
+on:
+  workflow_call:
+    inputs:
+      status:
+        description: "Pipeline status (success or failure)"
+        required: true
+        type: string
+      image_tag:
+        description: "Docker image tag built by CD"
+        required: false
+        type: string
+        default: "N/A"
+
+  workflow_dispatch:
+    inputs:
+      status:
+        description: "Pipeline status (success or failure)"
+        required: false
+        type: string
+        default: "success"
+      image_tag:
+        description: "Docker image tag"
+        required: false
+        type: string
+        default: "manual-run"
+
+permissions:
+  contents: read
+
+jobs:
+  discord-notify:
+    name: Discord Notification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Discord on Success
+        if: inputs.status == 'success'
+        uses: devlopersabbir/action-notifier@v1.2.0
+        with:
+          provider: discord
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          status: success
+          message: |
+            **✅ CD & Deployment Succeeded!**
+            Repository: `${{ github.repository }}`
+            Image: `${{ inputs.image_tag }}`
+            Commit: `${{ github.sha }}`
+
+      - name: Notify Discord on Failure
+        if: inputs.status != 'success'
+        uses: devlopersabbir/action-notifier@v1.2.0
+        with:
+          provider: discord
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          status: failure
+          message: |
+            **🚨 CD / Production Deployment Failed!**
+            Repository: `${{ github.repository }}`
+            Commit: `${{ github.sha }}`
+            Please inspect the workflow logs immediately.
