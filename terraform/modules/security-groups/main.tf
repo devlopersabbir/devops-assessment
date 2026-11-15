@@ -33,7 +33,7 @@ resource "aws_security_group" "alb" {
 # 2. Private EC2 Server Security Group (Only accepts HTTP from ALB)
 resource "aws_security_group" "server" {
   name        = "${var.project_name}-${var.environment}-server-sg"
-  description = "Security group for EC2 instance running Caddy and API docker container"
+  description = "Security group for EC2 instance running API docker container"
   vpc_id      = var.vpc_id
 
   # Inbound HTTP (80) strictly from the Application Load Balancer Security Group

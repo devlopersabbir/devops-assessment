@@ -14,23 +14,31 @@ if [[ ! -d "${TF_ENV_DIR}" ]]; then
   exit 1
 fi
 
-echo "Fetching EC2 instance ID for '${ENVIRONMENT}'..."
+PROFILE_ARGS=()
+if [[ -n "${AWS_PROFILE_NAME}" ]]; then
+  PROFILE_ARGS=(--profile "${AWS_PROFILE_NAME}")
+fi
+
+echo "Looking up running EC2 instance for '${ENVIRONMENT}'..."
 INSTANCE_ID="$(terraform -chdir="${TF_ENV_DIR}" output -raw ec2_instance_id 2>/dev/null || true)"
 
 if [[ -z "${INSTANCE_ID}" ]]; then
-  echo "Error: Could not retrieve 'ec2_instance_id' from Terraform outputs in ${TF_ENV_DIR}." >&2
-  echo "Make sure 'terraform apply' has completed in that environment." >&2
+  ASG_NAME="$(terraform -chdir="${TF_ENV_DIR}" output -raw asg_name 2>/dev/null || echo "devops-assessment-${ENVIRONMENT}-asg")"
+  INSTANCE_ID="$(aws autoscaling describe-auto-scaling-groups \
+    --auto-scaling-group-names "${ASG_NAME}" \
+    --region "${AWS_REGION_NAME}" \
+    "${PROFILE_ARGS[@]}" \
+    --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'] | [0].InstanceId" \
+    --output text 2>/dev/null || true)"
+fi
+
+if [[ -z "${INSTANCE_ID}" || "${INSTANCE_ID}" == "None" ]]; then
+  echo "Error: Could not find a running InService EC2 instance for '${ENVIRONMENT}'." >&2
   exit 1
 fi
 
 echo "Starting SSM session to ${INSTANCE_ID} (${ENVIRONMENT} in ${AWS_REGION_NAME})..."
-if [[ -n "${AWS_PROFILE_NAME}" ]]; then
-  exec aws ssm start-session \
-    --target "${INSTANCE_ID}" \
-    --region "${AWS_REGION_NAME}" \
-    --profile "${AWS_PROFILE_NAME}"
-else
-  exec aws ssm start-session \
-    --target "${INSTANCE_ID}" \
-    --region "${AWS_REGION_NAME}"
-fi
+exec aws ssm start-session \
+  --target "${INSTANCE_ID}" \
+  --region "${AWS_REGION_NAME}" \
+  "${PROFILE_ARGS[@]}"

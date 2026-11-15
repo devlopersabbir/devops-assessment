@@ -13,19 +13,14 @@ output "vpc_cidr_block" {
   value       = module.vpc.vpc_cidr_block
 }
 
-output "ec2_instance_id" {
-  description = "The ID of the staging EC2 instance"
-  value       = module.ec2.instance_id
+output "asg_name" {
+  description = "The name of the Auto Scaling Group"
+  value       = module.asg.asg_name
 }
 
-output "ec2_private_ip" {
-  description = "The private IP address of the staging EC2 instance"
-  value       = module.ec2.private_ip
-}
-
-output "ssm_session_command" {
-  description = "AWS CLI command to connect to the EC2 instance via SSM Session Manager"
-  value       = "aws ssm start-session --target ${module.ec2.instance_id} --region ${var.aws_region}${var.aws_profile != "" ? " --profile ${var.aws_profile}" : ""}"
+output "launch_template_id" {
+  description = "The ID of the EC2 Launch Template"
+  value       = module.asg.launch_template_id
 }
 
 output "alb_dns_name" {

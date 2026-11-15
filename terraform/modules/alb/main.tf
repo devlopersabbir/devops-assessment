@@ -40,8 +40,10 @@ resource "aws_lb_target_group" "this" {
   })
 }
 
-# Register Private EC2 Instance with the Target Group
+# Optional Static EC2 Instance Attachment (Skipped when using Auto Scaling Group)
 resource "aws_lb_target_group_attachment" "this" {
+  count = var.target_instance_id != "" ? 1 : 0
+
   target_group_arn = aws_lb_target_group.this.arn
   target_id        = var.target_instance_id
   port             = var.target_port

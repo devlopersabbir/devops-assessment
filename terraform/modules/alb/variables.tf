@@ -25,7 +25,8 @@ variable "alb_security_group_id" {
 
 variable "target_instance_id" {
   type        = string
-  description = "EC2 Instance ID to register with the ALB Target Group"
+  description = "Optional static EC2 Instance ID to register with the ALB Target Group (leave empty when using Auto Scaling Group)"
+  default     = ""
 }
 
 variable "target_port" {

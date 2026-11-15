@@ -39,8 +39,8 @@ variable "public_subnet_cidrs" {
 
 variable "private_subnet_cidrs" {
   type        = list(string)
-  description = "List of CIDR blocks for private subnets"
-  default     = ["10.0.10.0/24"]
+  description = "List of CIDR blocks for private subnets across Availability Zones"
+  default     = ["10.0.10.0/24", "10.0.11.0/24"]
 }
 
 variable "enable_dns_support" {
@@ -57,18 +57,19 @@ variable "enable_dns_hostnames" {
 
 variable "tags" {
   type        = map(string)
-  description = "Additional tags to attach to the VPC"
+  description = "Additional tags to attach to resources"
   default     = {}
 }
 
-# ------------ AWS EC2 ----------- #
+# ------------ AWS ASG / EC2 ----------- #
 variable "instance_name" {
   description = "Name tag of the EC2 instance"
   type        = string
+  default     = "devops-assessment-staging-ec2"
 }
 
 variable "ami_id" {
-  description = "AMI ID to use for the instance. If empty, defaults to Debian 13 AMI"
+  description = "AMI ID to use for the instance. If empty, defaults to Debian AMI"
   type        = string
   default     = ""
 }
@@ -76,6 +77,7 @@ variable "ami_id" {
 variable "instance_type" {
   description = "Type of EC2 instance to launch"
   type        = string
+  default     = "t3.micro"
 }
 
 variable "key_name" {
@@ -106,4 +108,22 @@ variable "user_data" {
   description = "User data script to bootstrap the instance (e.g. install Docker, SSM)"
   type        = string
   default     = null
+}
+
+variable "asg_min_size" {
+  description = "Minimum number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 1
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 3
+}
+
+variable "asg_desired_capacity" {
+  description = "Desired number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 2
 }
