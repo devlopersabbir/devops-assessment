@@ -39,6 +39,7 @@ jobs:
     needs: ci
     if: github.event_name != 'pull_request'
     uses: ./.github/workflows/cd.yaml
+    secrets: inherit
 
   # Deploy only after successful image publishing.
   deploy:
