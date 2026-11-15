@@ -2,10 +2,21 @@
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
 
-  # User data
+  # User data: Ensure AWS SSM Agent is installed and running on Debian 12/13
   ec2_bootstrap_user_data = <<-EOF
-      echo "hello world"
-      EOF
+    #!/bin/bash
+    set -euxo pipefail
+
+    if ! systemctl is-active --quiet amazon-ssm-agent; then
+      apt-get update -y
+      apt-get install -y curl wget
+      ARCH="$(dpkg --print-architecture)"
+      curl -fsSL "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_$${ARCH}/amazon-ssm-agent.deb" -o /tmp/amazon-ssm-agent.deb
+      dpkg -i /tmp/amazon-ssm-agent.deb
+      rm -f /tmp/amazon-ssm-agent.deb
+      systemctl enable --now amazon-ssm-agent
+    fi
+  EOF
 }
 
 # custom vpc
@@ -15,6 +26,7 @@ module "vpc" {
   project_name         = var.project_name
   environment          = var.environment
   vpc_cidr             = var.vpc_cidr
+  public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
 }
 

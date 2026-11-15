@@ -19,6 +19,12 @@ resource "aws_iam_role" "server" {
   })
 }
 
+# Attach AWS-managed policy for SSM Session Manager access (no SSH/bastion required)
+resource "aws_iam_role_policy_attachment" "ssm_managed_instance_core" {
+  role       = aws_iam_role.server.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "server" {
   name = "${var.project_name}-${var.environment}-server-profile"
   role = aws_iam_role.server.name
