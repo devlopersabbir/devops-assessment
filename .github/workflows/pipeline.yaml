@@ -28,19 +28,19 @@ permissions:
   pull-requests: read
 
 jobs:
-  # 1. Run all CI validations.
+  # Run all CI validations.
   ci:
     name: CI Validation
     uses: ./.github/workflows/ci.yaml
 
-  # 2. Build, scan and publish Docker image. (skip push on pull request)
+  # Build, scan and publish Docker image. (skip push on pull request)
   cd:
     name: Docker Build and Publish
     needs: ci
     if: github.event_name != 'pull_request'
     uses: ./.github/workflows/cd.yaml
 
-  # 3. Deploy only after successful image publishing.
+  # Deploy only after successful image publishing.
   deploy:
     name: Deploy to EC2
     needs: cd
@@ -54,7 +54,7 @@ jobs:
     # Pass the required deployment secrets.
     secrets: inherit
 
-  # 4. Separate Notification Job (only runs when CD pipeline executes)
+  # Separate Notification Job (only runs when CD pipeline executes)
   notify:
     name: Discord Notification
     needs:

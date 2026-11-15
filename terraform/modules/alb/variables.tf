@@ -31,8 +31,8 @@ variable "target_instance_id" {
 
 variable "target_port" {
   type        = number
-  description = "Port on the EC2 instance receiving traffic from the ALB (Caddy listens on 80)"
-  default     = 80
+  description = "Port on the EC2 instance receiving traffic from the ALB (Docker container listens on 8080)"
+  default     = 8080
 }
 
 variable "health_check_path" {

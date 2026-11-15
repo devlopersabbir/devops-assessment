@@ -1,4 +1,4 @@
-# 1. Application Load Balancer Security Group (Public HTTP Ingress)
+# 1. Application Load Balancer Security Group (Public HTTP Ingress -> EC2 8080 Egress)
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-${var.environment}-alb-sg"
   description = "Security group for internet-facing Application Load Balancer"
@@ -14,12 +14,12 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound HTTP (80) to backend EC2 targets
-  # trivy:ignore:AVD-AWS-0104 -- Allow ALB to forward traffic and health checks to target instances
+  # Outbound HTTP (8080) to backend EC2 Docker container
+  # trivy:ignore:AVD-AWS-0104 -- Allow ALB to forward traffic and health checks to target instances on port 8080
   egress {
-    description = "Allow ALB outbound HTTP traffic to EC2 backend"
-    from_port   = 80
-    to_port     = 80
+    description = "Allow ALB outbound HTTP traffic to EC2 container port 8080"
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -30,17 +30,17 @@ resource "aws_security_group" "alb" {
   })
 }
 
-# 2. Private EC2 Server Security Group (Only accepts HTTP from ALB)
+# 2. Private EC2 Server Security Group (Only accepts port 8080 from ALB)
 resource "aws_security_group" "server" {
   name        = "${var.project_name}-${var.environment}-server-sg"
   description = "Security group for EC2 instance running API docker container"
   vpc_id      = var.vpc_id
 
-  # Inbound HTTP (80) strictly from the Application Load Balancer Security Group
+  # Inbound port 8080 strictly from the Application Load Balancer Security Group
   ingress {
-    description     = "Allow inbound HTTP traffic strictly from the ALB security group"
-    from_port       = 80
-    to_port         = 80
+    description     = "Allow inbound container traffic on 8080 strictly from the ALB security group"
+    from_port       = 8080
+    to_port         = 8080
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
