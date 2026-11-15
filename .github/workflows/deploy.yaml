@@ -129,12 +129,12 @@ jobs:
             echo "Rolling Deploy [${INDEX}/${TOTAL}] -> Instance: ${IID}"
             echo "===================================================="
 
-            # Drain instance from ALB Target Group if multiple instances are running
+            # Drain instance from ALB Target Group only if multiple instances are running
             if [ -n "${TG_ARN}" ] && [ "${TOTAL}" -gt 1 ]; then
               echo "Draining ${IID} from ALB Target Group..."
               aws elbv2 deregister-targets \
                 --target-group-arn "${TG_ARN}" \
-                --targets "Id=${IID},Port=${APP_PORT}" || true
+                --targets "Id=${IID}" || true
               sleep 15
             fi
 
@@ -175,21 +175,33 @@ jobs:
               if [ -n "${TG_ARN}" ] && [ "${TOTAL}" -gt 1 ]; then
                 aws elbv2 register-targets \
                   --target-group-arn "${TG_ARN}" \
-                  --targets "Id=${IID},Port=${APP_PORT}" || true
+                  --targets "Id=${IID}" || true
               fi
               exit 1
             fi
 
-            # Re-register instance with ALB Target Group and wait until healthy
-            if [ -n "${TG_ARN}" ]; then
-              echo "Registering ${IID} back into ALB Target Group on port ${APP_PORT}..."
+            # Re-register instance if it was drained (TOTAL > 1) and verify ALB target health
+            if [ -n "${TG_ARN}" ] && [ "${TOTAL}" -gt 1 ]; then
+              echo "Re-registering ${IID} into ALB Target Group..."
               aws elbv2 register-targets \
                 --target-group-arn "${TG_ARN}" \
-                --targets "Id=${IID},Port=${APP_PORT}"
-              echo "Waiting for ${IID} to pass ALB Target Group health checks..."
-              aws elbv2 wait target-in-service \
-                --target-group-arn "${TG_ARN}" \
-                --targets "Id=${IID},Port=${APP_PORT}"
-              echo "Instance ${IID} is InService and healthy in ALB!"
+                --targets "Id=${IID}"
+            fi
+
+            if [ -n "${TG_ARN}" ]; then
+              echo "Verifying ALB Target Group health for ${IID}..."
+              for attempt in $(seq 1 18); do
+                TG_STATE=$(aws elbv2 describe-target-health \
+                  --target-group-arn "${TG_ARN}" \
+                  --targets "Id=${IID}" \
+                  --query "TargetHealthDescriptions[0].TargetHealth.State" \
+                  --output text 2>/dev/null || echo "unknown")
+                echo "Attempt ${attempt}/18: ALB Target Health for ${IID} is '${TG_STATE}'"
+                if [ "${TG_STATE}" = "healthy" ]; then
+                  echo "Instance ${IID} is healthy in ALB!"
+                  break
+                fi
+                sleep 5
+              done
             fi
           done
