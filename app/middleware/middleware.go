@@ -23,6 +23,14 @@ var (
 		[]string{"method", "path", "status"},
 	)
 
+	httpErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_errors_total",
+			Help: "Total number of HTTP requests that resulted in 4xx or 5xx errors.",
+		},
+		[]string{"method", "path", "status"},
+	)
+
 	httpRequestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_request_duration_seconds",
@@ -36,6 +44,7 @@ var (
 func InitMetrics() {
 	registerOnce.Do(func() {
 		prometheus.MustRegister(httpRequestsTotal)
+		prometheus.MustRegister(httpErrorsTotal)
 		prometheus.MustRegister(httpRequestDuration)
 	})
 }
@@ -100,10 +109,14 @@ func Prometheus() gin.HandlerFunc {
 		if routePath == "" {
 			routePath = c.Request.URL.Path
 		}
-		status := strconv.Itoa(c.Writer.Status())
+		statusInt := c.Writer.Status()
+		status := strconv.Itoa(statusInt)
 		duration := time.Since(start).Seconds()
 
 		httpRequestsTotal.WithLabelValues(c.Request.Method, routePath, status).Inc()
+		if statusInt >= 400 {
+			httpErrorsTotal.WithLabelValues(c.Request.Method, routePath, status).Inc()
+		}
 		httpRequestDuration.WithLabelValues(c.Request.Method, routePath, status).Observe(duration)
 	}
 }
