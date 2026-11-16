@@ -1,0 +1,2 @@
+# Run the system health monitoring reporter every 5 minutes and log output to /var/log/system_health.log
+*/5 * * * * root /opt/scripts/system_health.sh --log-file /var/log/system_health.log --json >/dev/null 2>&1

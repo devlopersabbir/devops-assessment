@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic System Health and Diagnostic Monitoring Reporter
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt
+ExecStart=/opt/scripts/system_health.sh --log-file /var/log/system_health.log --json
+StandardOutput=journal
+StandardError=journal
