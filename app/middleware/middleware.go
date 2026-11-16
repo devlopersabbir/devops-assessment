@@ -106,9 +106,9 @@ func Logger() gin.HandlerFunc {
 		}
 
 		if level == "ERROR" {
-			fmt.Fprintln(os.Stderr, string(data))
+			_, _ = fmt.Fprintln(os.Stderr, string(data))
 		} else {
-			fmt.Fprintln(os.Stdout, string(data))
+			_, _ = fmt.Fprintln(os.Stdout, string(data))
 		}
 	}
 }

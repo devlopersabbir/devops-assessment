@@ -21,13 +21,13 @@ func output(level, msg string) {
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "{\"level\":\"ERROR\",\"message\":\"failed to marshal log: %v\"}\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "{\"level\":\"ERROR\",\"message\":\"failed to marshal log: %v\"}\n", err)
 		return
 	}
 	if level == "ERROR" {
-		fmt.Fprintln(os.Stderr, string(data))
+		_, _ = fmt.Fprintln(os.Stderr, string(data))
 	} else {
-		fmt.Fprintln(os.Stdout, string(data))
+		_, _ = fmt.Fprintln(os.Stdout, string(data))
 	}
 }
 

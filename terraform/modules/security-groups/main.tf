@@ -51,12 +51,12 @@ resource "aws_security_group" "server" {
     }
   }
 
-  # Direct public inbound access on port 8080 & 80 when no ALB is used (staging)
-  # trivy:ignore:AVD-AWS-0107 -- Public staging EC2 instance without ALB must accept direct HTTP traffic from the internet
+  # Direct public inbound access on port 22 (SSH), 80, 8080 & 3000 (Grafana) when no ALB is used (staging)
+  # trivy:ignore:AVD-AWS-0107 -- Public staging EC2 instance accepts SSH, HTTP, and Grafana traffic from the internet
   dynamic "ingress" {
-    for_each = var.enable_alb ? [] : [80, 8080]
+    for_each = var.enable_alb ? [] : [22, 80, 8080, 3000]
     content {
-      description = "Allow public inbound HTTP traffic on port ${ingress.value} to staging EC2"
+      description = "Allow public inbound traffic on port ${ingress.value} to staging EC2"
       from_port   = ingress.value
       to_port     = ingress.value
       protocol    = "tcp"
