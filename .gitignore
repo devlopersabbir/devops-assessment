@@ -4,6 +4,10 @@ bin
 # Local .terraform directories (provider binaries and module caches)
 **/.terraform/*
 
+# Module build artifacts (e.g., packaged Lambda zips)
+**/.build/*
+*.zip
+
 # State files (often created locally during bootstrap)
 *.tfstate
 *.tfstate.*
@@ -29,3 +33,10 @@ crash.*.log
 terraform.rc
 
 .secrets
+
+# Kubernetes secret manifests 
+k8s/dotenv-secret.yaml
+k8s/*secret*.yaml
+k8s/*secret*.yml
+!k8s/*.example
+

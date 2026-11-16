@@ -102,6 +102,27 @@ variable "cpu_target_value" {
   default     = 70
 }
 
+variable "enabled_metrics" {
+  type        = list(string)
+  description = "List of Auto Scaling Group metrics to collect in CloudWatch"
+  default = [
+    "GroupMinSize",
+    "GroupMaxSize",
+    "GroupDesiredCapacity",
+    "GroupInServiceInstances",
+    "GroupPendingInstances",
+    "GroupStandbyInstances",
+    "GroupTerminatingInstances",
+    "GroupTotalInstances",
+  ]
+}
+
+variable "metrics_granularity" {
+  type        = string
+  description = "Granularity at which Auto Scaling Group metrics are collected"
+  default     = "1Minute"
+}
+
 variable "tags" {
   type        = map(string)
   description = "Additional tags to attach to ASG resources"
