@@ -17,7 +17,7 @@ groups:
           severity: warning
         annotations:
           summary: "High HTTP error rate detected (>5%)"
-          description: "HTTP 4xx/5xx error rate is currently at {{ $value | printf \"%.2f\" }}% over the last 5 minutes."
+          description: 'HTTP 4xx/5xx error rate is currently at {{ $value | printf "%.2f" }}% over the last 5 minutes.'
 
   - name: host_alerts
     rules:
@@ -28,7 +28,7 @@ groups:
           severity: warning
         annotations:
           summary: "Host root disk usage above 80%"
-          description: "Disk usage on mountpoint / is currently at {{ $value | printf \"%.2f\" }}%."
+          description: 'Disk usage on mountpoint / is currently at {{ $value | printf "%.2f" }}%.'
 
   - name: container_alerts
     rules:
@@ -39,4 +39,4 @@ groups:
           severity: warning
         annotations:
           summary: "Container memory usage near limit (>85%)"
-          description: "Container {{ $labels.name }} memory usage is at {{ $value | printf \"%.2f\" }}% of its configured memory limit."
+          description: 'Container {{ $labels.name }} memory usage is at {{ $value | printf "%.2f" }}% of its configured memory limit.'

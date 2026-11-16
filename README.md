@@ -119,24 +119,6 @@ All data sources and dashboards are provisioned automatically from repository YA
 +--------------------------------------------------+---------------------------------------------------+
 ```
 
-### 3. Containers Dashboard (`uid: containers-overview`)
-- **Panels**:
-  - **Container CPU Usage**: Core consumption per container reported by cAdvisor.
-  - **Per-Container Working Set Memory**: Exact resident set size (RSS) per running container.
-  - **Memory Usage Relative to Configured Limit (%)**: Container memory utilization as a percentage of its Docker `mem_limit` (128MB for the API container).
-
-```
-+------------------------------------------------------------------------------------------------------+
-|                                      Containers Dashboard                                            |
-+--------------------------------------------------+---------------------------------------------------+
-|  Container CPU Usage (% of core)                 |  Per-Container Working Set Memory                 |
-|  [ devops-assessment-api: 0.8% | cadvisor: 2.1% ]|  [ devops-assessment-api: 24.5 MB ]               |
-+--------------------------------------------------+---------------------------------------------------+
-|  Container Memory Usage Relative to Configured Limit (%)                                             |
-|  [ devops-assessment-api: 19.14% of 128MB limit ]                                                    |
-+------------------------------------------------------------------------------------------------------+
-```
-
 ---
 
 ## 4. Alerting Rules
