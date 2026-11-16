@@ -55,25 +55,27 @@ docker compose up -d --build
 
 ```mermaid
 flowchart TD
-    A["Code Push / PR"] --> B["Quality & Security Gates"]
-    subgraph B ["Quality & Security Gates"]
+    A["Code Push / PR"] --> B["Quality & Code Gates"]
+    subgraph B ["CI: Quality Gates"]
         B1["Linting (golangci-lint, hadolint, shellcheck)"]
         B2["Unit Tests & Coverage"]
-        B3["Vulnerability Scan (Trivy - Fails on CRITICAL)"]
     end
-    B --> C["Build Multi-Arch Docker Image (amd64/arm64)"]
-    C --> D["Push Image to GHCR (Tagged with SHA & Semantic Version)"]
-    D --> E{"Branch / Target Environment"}
-    E -->|"master branch"| F["Deploy to Staging EC2 via AWS SSM"]
-    E -->|"main branch"| G["Rolling Deploy to Prod ASG via AWS SSM"]
-    F --> H["Health Check Smoke Test & Auto-Rollback on Failure"]
-    G --> H
+    B --> C["CD: Build Multi-Arch Docker Image"]
+    C --> D["Security: Container Vulnerability Scan (Trivy - Fails on CRITICAL)"]
+    D --> E["Publish Image to GHCR (Tagged with SHA & SemVer)"]
+    E --> F{"Target Environment (Branch)"}
+    F -->|"master branch"| G["Deploy to Staging EC2 via AWS SSM"]
+    F -->|"main branch"| H["Rolling Deploy to Prod ASG via AWS SSM"]
+    G --> I["Health Check Smoke Test & Auto-Rollback on Failure"]
+    H --> I
+    I --> J["Discord Notification (Success / Failure Status Alert)"]
 ```
 
 ### Environment-Based Deployment & Security
 - **Branch-Based Target Resolution:** The workflow dynamically routes deployments based on the branch reference:
   - `master` $\rightarrow$ deploys to the standalone **Staging** instance.
   - `main` $\rightarrow$ initiates a zero-downtime rolling update across the **Production** Auto Scaling Group behind the ALB.
+- **Docker Image Vulnerability Scanning:** Every container image is scanned by **Trivy** before being pushed to GHCR. Any detected `CRITICAL` vulnerability halts the pipeline immediately.
 - **Agent-Based Deployment via AWS SSM:** Zero SSH exposure. Port 22 is entirely closed on all EC2 security groups. Commands and rolling container swaps are executed securely over the AWS Systems Manager (SSM) agent session.
-- **Zero Hardcoded Secrets:** All credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `GHCR_TOKEN`) are injected at runtime via GitHub Actions encrypted secrets.
-- **Automated Rollback:** Each instance performs a local `/health` verification on the newly spawned container before swapping ports. If the health check fails, the pipeline immediately aborts and rolls back to the previous image tag.
+- **Zero Hardcoded Secrets:** All credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `GHCR_TOKEN`, `DISCORD_WEBHOOK_URL`) are injected at runtime via GitHub Actions encrypted secrets.
+- **Automated Rollback & Real-Time Alerts:** Pre-swap `/health` checks verify new containers before traffic switchover; failed deployments revert to the previous image tag automatically and dispatch instant failure alerts to **Discord**. Successful production and staging rollouts trigger success summaries with image metadata.
