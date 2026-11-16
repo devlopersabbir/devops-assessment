@@ -51,14 +51,9 @@ func TestRootEndpoint(t *testing.T) {
 	}
 
 	expectedFields := []string{
-		"name",
+		"message",
+		"status",
 		"version",
-		"environment",
-		"description",
-		"hostname",
-		"go_version",
-		"uptime",
-		"timestamp",
 	}
 	for _, field := range expectedFields {
 		if val, ok := body[field]; !ok || val == "" {
@@ -66,14 +61,14 @@ func TestRootEndpoint(t *testing.T) {
 		}
 	}
 
-	if body["name"] != cfg.AppName {
-		t.Errorf("expected name %q, got %v", cfg.AppName, body["name"])
+	if body["message"] != "Hello from DevOps Task!" {
+		t.Errorf("expected message 'Hello from DevOps Task!', got %v", body["message"])
+	}
+	if body["status"] != "running" {
+		t.Errorf("expected status 'running', got %v", body["status"])
 	}
 	if body["version"] != cfg.AppVersion {
 		t.Errorf("expected version %q, got %v", cfg.AppVersion, body["version"])
-	}
-	if body["environment"] != cfg.AppEnv {
-		t.Errorf("expected environment %q, got %v", cfg.AppEnv, body["environment"])
 	}
 }
 
@@ -119,7 +114,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	r := router.Setup(cfg)
 
 	// Send initial requests so custom Prometheus metrics are recorded
-	for _, path := range []string{"/", "/health"} {
+	for _, path := range []string{"/", "/health", "/non-existent"} {
 		req, _ := http.NewRequest(http.MethodGet, path, nil)
 		r.ServeHTTP(httptest.NewRecorder(), req)
 	}
@@ -138,6 +133,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	output := w.Body.String()
 	expectedMetrics := []string{
 		"http_requests_total",
+		"http_requests_errors_total",
 		"http_request_duration_seconds",
 		"go_goroutines",
 	}
