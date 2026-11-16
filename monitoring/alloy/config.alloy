@@ -1,0 +1,61 @@
+discovery.docker "docker_containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.docker_containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+}
+
+loki.source.docker "default" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.process.parse_app_logs.receiver]
+}
+
+loki.process "parse_app_logs" {
+  // Parse structured JSON logs if present (emitted by devops-assessment-api)
+  stage.json {
+    expressions = {
+      log_level = "level",
+      method    = "method",
+      path      = "path",
+      status    = "status",
+      msg       = "message",
+    }
+  }
+
+  // Promote level and method to indexed labels (low cardinality: ~4 levels, ~5 methods)
+  stage.labels {
+    values = {
+      level  = "log_level",
+      method = "method",
+    }
+  }
+
+  // Set path and status as structured metadata (zero-cardinality index penalty, fast filtering)
+  stage.structured_metadata {
+    values = {
+      path   = "path",
+      status = "status",
+    }
+  }
+
+  forward_to = [loki.write.local_loki.receiver]
+}
+
+loki.write "local_loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

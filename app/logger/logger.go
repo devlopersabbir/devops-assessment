@@ -1,40 +1,61 @@
 package logger
 
 import (
-	"log"
+	"encoding/json"
+	"fmt"
 	"os"
+	"time"
 )
 
-var (
-	infoLogger  = log.New(os.Stdout, "[INFO] ", log.Ldate|log.Ltime|log.LUTC)
-	warnLogger  = log.New(os.Stdout, "[WARN] ", log.Ldate|log.Ltime|log.LUTC)
-	errorLogger = log.New(os.Stderr, "[ERROR] ", log.Ldate|log.Ltime|log.LUTC)
-)
+type LogEntry struct {
+	Timestamp string `json:"timestamp"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+}
+
+func output(level, msg string) {
+	entry := LogEntry{
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		Level:     level,
+		Message:   msg,
+	}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "{\"level\":\"ERROR\",\"message\":\"failed to marshal log: %v\"}\n", err)
+		return
+	}
+	if level == "ERROR" {
+		fmt.Fprintln(os.Stderr, string(data))
+	} else {
+		fmt.Fprintln(os.Stdout, string(data))
+	}
+}
 
 func Info(msg string) {
-	infoLogger.Println(msg)
+	output("INFO", msg)
 }
 
 func Infof(format string, v ...interface{}) {
-	infoLogger.Printf(format, v...)
+	output("INFO", fmt.Sprintf(format, v...))
 }
 
 func Warn(msg string) {
-	warnLogger.Println(msg)
+	output("WARN", msg)
 }
 
 func Warnf(format string, v ...interface{}) {
-	warnLogger.Printf(format, v...)
+	output("WARN", fmt.Sprintf(format, v...))
 }
 
 func Error(msg string) {
-	errorLogger.Println(msg)
+	output("ERROR", msg)
 }
 
 func Errorf(format string, v ...interface{}) {
-	errorLogger.Printf(format, v...)
+	output("ERROR", fmt.Sprintf(format, v...))
 }
 
 func Fatalf(format string, v ...interface{}) {
-	errorLogger.Fatalf(format, v...)
+	output("FATAL", fmt.Sprintf(format, v...))
+	os.Exit(1)
 }

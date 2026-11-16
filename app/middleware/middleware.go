@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -49,7 +51,19 @@ func InitMetrics() {
 	})
 }
 
-// Logger logs incoming HTTP requests with [INFO], [WARN], or [ERROR] prefixes.
+// RequestLogEntry represents a structured JSON log entry for HTTP requests.
+type RequestLogEntry struct {
+	Timestamp  string  `json:"timestamp"`
+	Level      string  `json:"level"`
+	Method     string  `json:"method"`
+	Path       string  `json:"path"`
+	StatusCode int     `json:"status"`
+	LatencyMs  float64 `json:"latency_ms"`
+	ClientIP   string  `json:"client_ip"`
+	Message    string  `json:"message"`
+}
+
+// Logger logs incoming HTTP requests as structured JSON.
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -67,15 +81,34 @@ func Logger() gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 
-		msg := fmt.Sprintf("%s %s | status=%d | latency=%v | ip=%s", method, path, statusCode, latency, clientIP)
+		level := "INFO"
+		if statusCode >= 500 {
+			level = "ERROR"
+		} else if statusCode >= 400 {
+			level = "WARN"
+		}
 
-		switch {
-		case statusCode >= 500:
-			logger.Error(msg)
-		case statusCode >= 400:
-			logger.Warn(msg)
-		default:
-			logger.Info(msg)
+		entry := RequestLogEntry{
+			Timestamp:  time.Now().UTC().Format(time.RFC3339Nano),
+			Level:      level,
+			Method:     method,
+			Path:       path,
+			StatusCode: statusCode,
+			LatencyMs:  float64(latency.Nanoseconds()) / 1e6,
+			ClientIP:   clientIP,
+			Message:    fmt.Sprintf("%s %s | status=%d | latency=%v | ip=%s", method, path, statusCode, latency, clientIP),
+		}
+
+		data, err := json.Marshal(entry)
+		if err != nil {
+			logger.Errorf("Failed to marshal request log entry: %v", err)
+			return
+		}
+
+		if level == "ERROR" {
+			fmt.Fprintln(os.Stderr, string(data))
+		} else {
+			fmt.Fprintln(os.Stdout, string(data))
 		}
 	}
 }

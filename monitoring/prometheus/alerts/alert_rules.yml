@@ -1,0 +1,42 @@
+groups:
+  - name: application_alerts
+    rules:
+      - alert: AppInstanceDown
+        expr: up{job="devops-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application instance is down"
+          description: "The API instance {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_errors_total[5m])) / sum(rate(http_requests_total[5m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP error rate detected (>5%)"
+          description: "HTTP 4xx/5xx error rate is currently at {{ $value | printf \"%.2f\" }}% over the last 5 minutes."
+
+  - name: host_alerts
+    rules:
+      - alert: HostDiskUsageHigh
+        expr: (1 - (node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host root disk usage above 80%"
+          description: "Disk usage on mountpoint / is currently at {{ $value | printf \"%.2f\" }}%."
+
+  - name: container_alerts
+    rules:
+      - alert: ContainerMemoryNearLimit
+        expr: (container_memory_usage_bytes{name=~".+"} / container_spec_memory_limit_bytes{name=~".+"}) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container memory usage near limit (>85%)"
+          description: "Container {{ $labels.name }} memory usage is at {{ $value | printf \"%.2f\" }}% of its configured memory limit."
