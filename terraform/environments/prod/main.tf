@@ -3,7 +3,7 @@ locals {
   name_prefix                 = "${var.project_name}-${var.environment}"
   cw_agent_ssm_parameter_name = "AmazonCloudWatch-${local.name_prefix}-agent-config"
   ec2_bootstrap_user_data = join("\n", compact([
-    replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n"),
+    replace(file("${path.module}/../../scripts/install-ssm-agent.sh"), "\r\n", "\n"),
     replace(file("${path.module}/../../scripts/initialize-server.sh"), "\r\n", "\n"),
     var.enable_cloudwatch_agent ? "export CW_AGENT_SSM_PARAM='${local.cw_agent_ssm_parameter_name}'" : "",
     var.enable_cloudwatch_agent ? replace(file("${path.module}/../../scripts/install-cloudwatch-agent.sh"), "\r\n", "\n") : "",

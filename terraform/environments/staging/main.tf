@@ -1,7 +1,7 @@
 # Local Variable
 locals {
   ec2_bootstrap_user_data = join("\n", compact([
-    replace(file("${path.module}/../../scripts/ec2-user-data.sh"), "\r\n", "\n"),
+    replace(file("${path.module}/../../scripts/install-ssm-agent.sh"), "\r\n", "\n"),
     replace(file("${path.module}/../../scripts/initialize-server.sh"), "\r\n", "\n"),
   ]))
 }
