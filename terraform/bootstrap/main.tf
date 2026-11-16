@@ -3,14 +3,14 @@
 resource "aws_s3_bucket" "terraform_state" {
   for_each = toset(var.environments)
 
-  bucket = "${var.project_name}-${each.key}-tfstate"
+  bucket = "${var.project_name}-${each.key}-tfstate-1"
 
   lifecycle {
     prevent_destroy = true
   }
 
   tags = {
-    Name        = "${var.project_name}-${each.key}-tfstate"
+    Name        = "${var.project_name}-${each.key}-tfstate-1"
     Environment = each.key
   }
 }

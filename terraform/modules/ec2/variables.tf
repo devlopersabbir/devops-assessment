@@ -36,6 +36,12 @@ variable "key_name" {
   default     = null
 }
 
+variable "allocate_eip" {
+  description = "Whether to allocate and associate a static Elastic IP (EIP) to the EC2 instance"
+  type        = bool
+  default     = true
+}
+
 variable "root_volume_size" {
   description = "Root volume size in GB"
   type        = number
