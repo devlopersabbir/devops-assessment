@@ -1,15 +1,20 @@
 name: Main CI/CD Pipeline
 
+# Branch -> environment mapping:
+#   master          -> staging
+#   main / v*.*.*   -> prod
 on:
   push:
     branches:
       - main
+      - master
     tags:
       - "v*.*.*"
 
   pull_request:
     branches:
       - main
+      - master
     types:
       - opened
       - synchronize
@@ -47,9 +52,10 @@ jobs:
     if: github.event_name != 'pull_request'
     uses: ./.github/workflows/deploy.yaml
 
-    # Pass the exact image produced by the CD workflow.
+    # Pass the exact image produced by the CD workflow and the target environment.
     with:
       image_tag: ${{ fromJSON(toJSON(needs.cd.outputs)).image_tag }}
+      environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && 'prod' || 'staging' }}
 
     # Pass the required deployment secrets.
     secrets: inherit

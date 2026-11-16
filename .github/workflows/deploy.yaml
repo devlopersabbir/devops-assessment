@@ -7,6 +7,10 @@ on:
         description: "Exact Docker image to deploy"
         required: true
         type: string
+      environment:
+        description: "Target environment (staging | prod)"
+        required: true
+        type: string
 
   workflow_dispatch:
     inputs:
@@ -14,25 +18,32 @@ on:
         description: "Exact Docker image to deploy"
         required: true
         type: string
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - prod
 
 permissions:
   contents: read
 
 env:
   AWS_REGION: ap-south-1
-  ASG_NAME: devops-assessment-staging-asg
-  ALB_NAME: devops-assessment-staging-alb
-  INSTANCE_TAG_NAME: devops-assessment-staging-server
+  PROJECT_NAME: devops-assessment
+  TARGET_ENV: ${{ inputs.environment }}
   CONTAINER_NAME: devops-assessment-api
   APP_PORT: "8080"
 
 jobs:
   deploy:
-    name: Zero-Downtime Rolling Deploy to EC2
+    name: Zero-Downtime Rolling Deploy to EC2 (${{ inputs.environment }})
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate image reference
+      - name: Validate inputs & resolve environment targets
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
@@ -40,7 +51,26 @@ jobs:
             echo "::error::Docker image reference is required."
             exit 1
           fi
-          echo "Deploying image: ${IMAGE_TAG}"
+
+          # Names must match the Terraform environments:
+          #   prod    -> ASG + ALB  (instances tagged <project>-prod-server)
+          #   staging -> single EC2 with Elastic IP (tagged <project>-staging-ec2), no ASG/ALB
+          case "${TARGET_ENV}" in
+            prod)
+              echo "ASG_NAME=${PROJECT_NAME}-prod-asg" >> "$GITHUB_ENV"
+              echo "INSTANCE_TAG_NAME=${PROJECT_NAME}-prod-server" >> "$GITHUB_ENV"
+              ;;
+            staging)
+              echo "ASG_NAME=" >> "$GITHUB_ENV"
+              echo "INSTANCE_TAG_NAME=${PROJECT_NAME}-staging-ec2" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::Unknown environment '${TARGET_ENV}' (expected staging or prod)."
+              exit 1
+              ;;
+          esac
+
+          echo "Deploying image: ${IMAGE_TAG} -> ${TARGET_ENV}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -55,19 +85,24 @@ jobs:
           INSTANCE_IDS=$(aws ec2 describe-instances \
             --filters \
               "Name=tag:Name,Values=${INSTANCE_TAG_NAME}" \
+              "Name=tag:Environment,Values=${TARGET_ENV}" \
               "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" \
             --output text | tr '\t' ' ' | xargs)
 
           if [ -z "${INSTANCE_IDS}" ]; then
-            echo "::error::No running EC2 instances found with tag Name=${INSTANCE_TAG_NAME}"
+            echo "::error::No running EC2 instances found with tag Name=${INSTANCE_TAG_NAME} (Environment=${TARGET_ENV})"
             exit 1
           fi
 
-          TG_ARN=$(aws autoscaling describe-auto-scaling-groups \
-            --auto-scaling-group-names "${ASG_NAME}" \
-            --query "AutoScalingGroups[0].TargetGroupARNs[0]" \
-            --output text 2>/dev/null || true)
+          # Only prod has an ASG/ALB; staging is a single EC2 reached via its Elastic IP.
+          TG_ARN=""
+          if [ -n "${ASG_NAME}" ]; then
+            TG_ARN=$(aws autoscaling describe-auto-scaling-groups \
+              --auto-scaling-group-names "${ASG_NAME}" \
+              --query "AutoScalingGroups[0].TargetGroupARNs[0]" \
+              --output text 2>/dev/null || true)
+          fi
 
           if [ "${TG_ARN}" = "None" ]; then
             TG_ARN=""
