@@ -1,7 +1,7 @@
 locals {
   dashboard_name = "${local.name_prefix}-overview"
 
-  nat_gateway_widget = var.nat_gateway_id != "" ? [
+  nat_gateway_widget = var.enable_nat_gateway_monitoring ? [
     {
       type   = "metric"
       x      = 0
@@ -207,9 +207,9 @@ locals {
       # Row 4: Application & Network Log Metrics (+ NAT Gateway if enabled)
       {
         type   = "metric"
-        x      = var.nat_gateway_id != "" ? 12 : 0
+        x      = var.enable_nat_gateway_monitoring ? 12 : 0
         y      = 24
-        width  = var.nat_gateway_id != "" ? 12 : 24
+        width  = var.enable_nat_gateway_monitoring ? 12 : 24
         height = 6
         properties = {
           title  = "Application & Security Log Metrics"

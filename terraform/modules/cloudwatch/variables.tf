@@ -20,8 +20,14 @@ variable "vpc_id" {
 
 variable "nat_gateway_id" {
   type        = string
-  description = "NAT Gateway ID to monitor (leave empty to skip NAT Gateway alarms and widgets)"
+  description = "NAT Gateway ID to monitor"
   default     = ""
+}
+
+variable "enable_nat_gateway_monitoring" {
+  type        = bool
+  description = "Enable NAT Gateway alarms and dashboard widget"
+  default     = true
 }
 
 variable "alb_arn_suffix" {

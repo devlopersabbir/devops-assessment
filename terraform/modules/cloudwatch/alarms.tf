@@ -266,7 +266,7 @@ locals {
     }
   } : {}
 
-  nat_gateway_alarms = var.nat_gateway_id != "" ? {
+  nat_gateway_alarms = var.enable_nat_gateway_monitoring ? {
     nat_port_allocation_errors = {
       description         = "NAT Gateway experienced SNAT port allocation errors"
       comparison_operator = "GreaterThanOrEqualToThreshold"

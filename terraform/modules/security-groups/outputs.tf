@@ -4,6 +4,6 @@ output "security_group_id" {
 }
 
 output "alb_security_group_id" {
-  description = "ID of the Application Load Balancer security group"
-  value       = aws_security_group.alb.id
+  description = "ID of the Application Load Balancer security group (null if ALB is disabled)"
+  value       = var.enable_alb ? aws_security_group.alb[0].id : null
 }

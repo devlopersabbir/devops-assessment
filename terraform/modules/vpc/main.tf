@@ -7,6 +7,7 @@ locals {
 }
 
 # 1. Custom VPC
+# trivy:ignore:AVD-AWS-0178 -- VPC Flow Logs are managed conditionally per environment (enabled in prod, disabled in lightweight staging)
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = var.enable_dns_support
@@ -28,7 +29,7 @@ resource "aws_internet_gateway" "this" {
   })
 }
 
-# 3. Public Subnets (for NAT Gateway & ALB)
+# 3. Public Subnets (for NAT Gateway, ALB, or Public EC2)
 resource "aws_subnet" "public" {
   count             = length(var.public_subnet_cidrs)
   vpc_id            = aws_vpc.this.id
@@ -44,7 +45,7 @@ resource "aws_subnet" "public" {
   })
 }
 
-# 4. Private Application Subnets
+# 4. Private Application Subnets (optional)
 resource "aws_subnet" "private" {
   count             = length(var.private_subnet_cidrs)
   vpc_id            = aws_vpc.this.id
@@ -60,8 +61,9 @@ resource "aws_subnet" "private" {
   })
 }
 
-# 5. Elastic IP & NAT Gateway (for outbound internet & SSM access from Private Subnets)
+# 5. Elastic IP & NAT Gateway (optional; for outbound internet & SSM access from Private Subnets)
 resource "aws_eip" "nat" {
+  count  = var.enable_nat_gateway ? 1 : 0
   domain = "vpc"
 
   tags = merge(var.tags, {
@@ -73,7 +75,8 @@ resource "aws_eip" "nat" {
 }
 
 resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
+  count         = var.enable_nat_gateway ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
   subnet_id     = aws_subnet.public[0].id
 
   tags = merge(var.tags, {
@@ -105,13 +108,14 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# 7. Private Route Table & Associations (routes outbound traffic via NAT Gateway)
+# 7. Private Route Table & Associations (routes outbound traffic via NAT Gateway when enabled)
 resource "aws_route_table" "private" {
+  count  = var.enable_nat_gateway && length(var.private_subnet_cidrs) > 0 ? 1 : 0
   vpc_id = aws_vpc.this.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this.id
+    nat_gateway_id = aws_nat_gateway.this[0].id
   }
 
   tags = merge(var.tags, {
@@ -121,7 +125,7 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route_table_association" "private" {
-  count          = length(aws_subnet.private)
+  count          = var.enable_nat_gateway ? length(aws_subnet.private) : 0
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[0].id
 }

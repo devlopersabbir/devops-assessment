@@ -28,6 +28,7 @@ resource "aws_instance" "this" {
 
     instance_metadata_tags = "enabled"
   }
+
   # Encrypted root EBS volume.
   root_block_device {
     volume_size           = var.root_volume_size
@@ -46,7 +47,23 @@ resource "aws_instance" "this" {
   })
 
   lifecycle {
-    # Create replacement before destroying the existing instance..
+    # Create replacement before destroying the existing instance.
     create_before_destroy = true
   }
+}
+
+# Static Public IP (Elastic IP) for direct internet access
+resource "aws_eip" "this" {
+  count  = var.allocate_eip ? 1 : 0
+  domain = "vpc"
+
+  tags = merge(var.tags, {
+    Name = "${var.instance_name}-eip"
+  })
+}
+
+resource "aws_eip_association" "this" {
+  count         = var.allocate_eip ? 1 : 0
+  instance_id   = aws_instance.this.id
+  allocation_id = aws_eip.this[0].id
 }

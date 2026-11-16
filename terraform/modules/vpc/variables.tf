@@ -20,14 +20,20 @@ variable "vpc_cidr" {
 
 variable "public_subnet_cidrs" {
   type        = list(string)
-  description = "List of CIDR blocks for public subnets (NAT Gateway, ALB)"
+  description = "List of CIDR blocks for public subnets (NAT Gateway, ALB, or public EC2)"
   default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   type        = list(string)
-  description = "List of CIDR blocks for private subnets"
-  default     = ["10.0.10.0/24"]
+  description = "List of CIDR blocks for private subnets (leave empty when no private tier is needed)"
+  default     = []
+}
+
+variable "enable_nat_gateway" {
+  type        = bool
+  description = "Whether to provision an Elastic IP and NAT Gateway for private subnets"
+  default     = true
 }
 
 variable "azs" {

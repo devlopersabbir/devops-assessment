@@ -20,7 +20,11 @@ if [[ -n "${AWS_PROFILE_NAME}" ]]; then
 fi
 
 echo "Looking up running EC2 instance for '${ENVIRONMENT}'..."
-INSTANCE_ID="$(terraform -chdir="${TF_ENV_DIR}" output -raw ec2_instance_id 2>/dev/null || true)"
+# staging: single EC2 exposes `instance_id`; prod: ASG (falls through to ASG lookup below)
+INSTANCE_ID="$(terraform -chdir="${TF_ENV_DIR}" output -raw instance_id 2>/dev/null || true)"
+if [[ ! "${INSTANCE_ID}" =~ ^i-[0-9a-f]+$ ]]; then
+  INSTANCE_ID=""
+fi
 
 if [[ -z "${INSTANCE_ID}" ]]; then
   ASG_NAME="$(terraform -chdir="${TF_ENV_DIR}" output -raw asg_name 2>/dev/null || echo "devops-assessment-${ENVIRONMENT}-asg")"
