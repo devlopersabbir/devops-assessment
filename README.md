@@ -115,7 +115,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     User["Developer / Tester"] -->|"HTTP: 3.111.180.6:8080"| EIP["Elastic IP (3.111.180.6)"]
-    
+
     subgraph StagingVPC ["Staging VPC (10.1.0.0/16) - ap-south-1"]
         IGW_S["Internet Gateway"] --> EIP
         subgraph PublicSubnet_S ["Public Subnet (10.1.1.0/24)"]
@@ -154,14 +154,14 @@ flowchart TD
             direction LR
             PrivSubA["Private Subnet A<br>ap-south-1a (10.0.10.0/24)"]
             PrivSubB["Private Subnet B<br>ap-south-1b (10.0.20.0/24)"]
-            
+
             TargetGroup --> ASG["Auto Scaling Group (ASG)<br>Launch Template | Min: 2, Desired: 2, Max: 4"]
             ASG --> EC2_P1["EC2 Instance (t3.micro)<br>devops-assessment-prod-server"]
             ASG --> EC2_P2["EC2 Instance (t3.micro)<br>devops-assessment-prod-server"]
-            
+
             EC2_P1 --- SG_P["Security Group<br>Inbound from ALB only<br>Port 22: CLOSED"]
             EC2_P2 --- SG_P
-            
+
             EC2_P1 --- IAM_P["IAM Role (SSM + CloudWatch)"]
             EC2_P2 --- IAM_P
         end
@@ -179,6 +179,7 @@ flowchart TD
 ```
 
 ### Architecture & Network Isolation
+
 - **Dedicated Dual VPCs:** Staging (`10.1.0.0/16`) and Production (`10.0.0.0/16`) are fully segregated with zero network peering, ensuring complete environment isolation.
 - **Production High Availability:** Spans 2 Availability Zones (`ap-south-1a`, `ap-south-1b`) with public/private subnet topology. Workloads run inside private subnets behind an Application Load Balancer with outbound internet provided via NAT Gateway.
 - **Lightweight Staging:** Cost-effective single-instance setup (`t3.small`) bound to a static Elastic IP for straightforward validation without ALB/NAT overhead.
@@ -186,8 +187,114 @@ flowchart TD
 - **State Management:** S3 remote backends with AES-256 encryption, bucket versioning, and DynamoDB-backed state locking to prevent concurrent modifications.
 
 ### Evidence of Plan & Apply
+
 Execution logs and verification outputs are archived in `screenshots/terraform/`:
+
 - [`screenshots/terraform/staging-plan.png`](screenshots/terraform/staging-plan.png) — Staging resource execution plan
 - [`screenshots/terraform/staging-apply.png`](screenshots/terraform/staging-apply.png) — Staging resources successfully provisioned
 - [`screenshots/terraform/prod-plan.png`](screenshots/terraform/prod-plan.png) — Production resource execution plan
 - [`screenshots/terraform/prod-apply.png`](screenshots/terraform/prod-apply.png) — Production multi-AZ resources successfully provisioned
+
+---
+
+## Step 4: Kubernetes Deployment
+
+Local Kubernetes architecture deployed on **Minikube** under the isolated `devops-assessment` namespace.
+
+```mermaid
+flowchart TD
+    Client["Client / curl"] -->|"kubectl port-forward 8080:80"| SVC["Service: ClusterIP (Port 80 -> 8080)"]
+    SVC --> Pods["Pods (Replicas: 2 - 5)"]
+
+    subgraph K8sCluster ["Namespace: devops-assessment"]
+        SVC
+        subgraph Deployment ["Deployment: devops-assessment-server"]
+            Pods
+            HPA["HorizontalPodAutoscaler (Target: 70% CPU)"] -.->|"Scales"| Pods
+            ConfigMap["ConfigMap: app-config (Port, Env, LogLevel)"] --> Pods
+            Secret["Secret: ghcr-secret (Pull Token)"] --> Pods
+        end
+    end
+```
+
+### Manifest Specifications (`k8s/`)
+
+- **`deployment.yaml`:**
+  - High availability: Min 2 replicas with `RollingUpdate` strategy (`maxSurge: 1`, `maxUnavailable: 0`).
+  - Container hardening: `runAsNonRoot: true` (`UID/GID 10001`), `readOnlyRootFilesystem: true`, capabilities dropped (`ALL`), `allowPrivilegeEscalation: false`.
+  - Resource governance: Requests (`50m` CPU, `64Mi` RAM) and Limits (`250m` CPU, `128Mi` RAM).
+  - Health probes: Liveness (`/health`, 10s period) and Readiness (`/health`, 5s period).
+- **`service.yaml`:** Exposes backend pods internally via `ClusterIP` on port 80.
+- **`hpa.yaml`:** `HorizontalPodAutoscaler` scaling from 2 to 5 pods when average CPU utilization exceeds 70%.
+- **`configmap.yaml` & `dotenv-secret.yaml`:** Decoupled runtime configuration (`app-config`) and Git-ignored image pull credentials (`ghcr-secret` from `dotenv-secret.yaml.example`).
+
+---
+
+### Local Deployment & Access via Port-Forwarding
+
+```bash
+# 0. Start Minikube & enable metrics-server for HPA
+minikube start
+minikube addons enable metrics-server
+
+# 1. Create namespace, config, and secret
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+
+# Generate image pull secret from template (copy dotenv-secret.yaml.example -> dotenv-secret.yaml)
+kubectl apply -f k8s/dotenv-secret.yaml
+
+# 2. Deploy application and HPA
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/hpa.yaml
+
+# 3. Access locally via Port-Forwarding
+kubectl port-forward -n devops-assessment svc/devops-assessment-service 8080:80
+```
+
+Verify service in another terminal:
+
+```bash
+curl -s http://localhost:8080/
+# {"message":"Hello from DevOps Task!","status":"running","version":"1.0.0"}
+
+curl -s http://localhost:8080/health
+# {"status":"ok"}
+```
+
+#### Evidence of Running Workload
+
+- [`screenshots/k8s/get-all.png`](screenshots/k8s/get-all.png) — Verified cluster state showing active Pods, Service, Deployment, and HPA in Minikube (`kubectl get all -n devops-assessment`).
+
+---
+
+### Zero-Downtime Rolling Update & Rollback Verification
+
+```bash
+# Trigger rolling update to new image version
+kubectl set image deployment/devops-assessment-server server=ghcr.io/devlopersabbir/devops-assessment:1.1.0 -n devops-assessment
+
+# Monitor zero-downtime rollout in real time
+kubectl rollout status deployment/devops-assessment-server -n devops-assessment
+# Output: deployment "devops-assessment-server" successfully rolled out
+
+# Verify rollout history
+kubectl rollout history deployment/devops-assessment-server -n devops-assessment
+
+# Instant rollback to the previous working revision if an issue occurs
+kubectl rollout undo deployment/devops-assessment-server -n devops-assessment
+# Output: deployment.apps/devops-assessment-server rolled back
+```
+
+---
+
+### Production EKS Transition (What Would Change)
+
+To migrate this local setup to a production-grade Amazon EKS cluster:
+
+1. **Ingress & TLS:** Replace port-forwarding with **AWS Load Balancer Controller** managing an Internet-facing Application Load Balancer via standard `Ingress`, with TLS certificates automated via **AWS Certificate Manager (ACM)**.
+2. **Dynamic Secrets Management:** Replace static Kubernetes Secrets with **External Secrets Operator (ESO)** integrating directly with **AWS Secrets Manager** or **AWS Systems Manager Parameter Store** (enabling automatic secret rotation with zero hardcoded values).
+3. **IAM Roles for Service Accounts (IRSA / EKS Pod Identity):** Replace static tokens with AWS Pod Identity or IRSA, granting pods fine-grained, temporary IAM permissions (e.g., S3 or DynamoDB access) without static keys.
+4. **Intelligent Node Autoscaling:** Deploy **Karpenter** alongside the `HorizontalPodAutoscaler` to dynamically provision right-sized, cost-optimized EC2 Graviton/AMD instances in seconds directly in response to pod resource requests.
+5. **Observability & Network Policies:** Leverage **Amazon VPC CNI** for native VPC IP allocation and install **Cilium / Calico** to enforce strict zero-trust egress and ingress NetworkPolicies between namespaces.
