@@ -122,12 +122,11 @@ flowchart TD
             EIP --> EC2_S["EC2 Instance (t3.small)<br>devops-assessment-staging-ec2"]
             EC2_S --> AppContainer_S["Docker Container<br>devops-assessment-api (Port 8080)"]
             EC2_S --- SG_S["Security Group<br>Allow: 80, 8080, 3000<br>Port 22 (SSH): CLOSED"]
-            EC2_S --- IAM_S["IAM Role<br>AmazonSSMManagedInstanceCore<br>CloudWatchAgentServerPolicy"]
+            EC2_S --- IAM_S["IAM Role<br>AmazonSSMManagedInstanceCore<br>(SSM Session Access Only)"]
         end
     end
 
     AWS_SSM["AWS Systems Manager (SSM)"] -.->|"Zero-SSH Deploy & Session Access"| EC2_S
-    EC2_S -.->|"Container Logs"| CWL_S["CloudWatch Logs Group (/aws/ec2/staging)"]
 ```
 
 ---
@@ -183,12 +182,12 @@ flowchart TD
 - **Dedicated Dual VPCs:** Staging (`10.1.0.0/16`) and Production (`10.0.0.0/16`) are fully segregated with zero network peering, ensuring complete environment isolation.
 - **Production High Availability:** Spans 2 Availability Zones (`ap-south-1a`, `ap-south-1b`) with public/private subnet topology. Workloads run inside private subnets behind an Application Load Balancer with outbound internet provided via NAT Gateway.
 - **Lightweight Staging:** Cost-effective single-instance setup (`t3.small`) bound to a static Elastic IP for straightforward validation without ALB/NAT overhead.
-- **IAM Least Privilege & Zero SSH:** No static IAM credentials exist on instances. All access is governed via AWS Systems Manager (`AmazonSSMManagedInstanceCore`) and least-privilege CloudWatch logging policies. Port 22 is disabled across all security groups.
+- **IAM Least Privilege & Zero SSH:** No static IAM credentials exist on instances. All access is governed via AWS Systems Manager (`AmazonSSMManagedInstanceCore`). CloudWatch logging and alarms are strictly provisioned on Production (`prod`), keeping Staging lean without extra agent overhead. Port 22 is disabled across all security groups.
 - **State Management:** S3 remote backends with AES-256 encryption, bucket versioning, and DynamoDB-backed state locking to prevent concurrent modifications.
 
 ### Evidence of Plan & Apply
 Execution logs and verification outputs are archived in `screenshots/terraform/`:
-- `screenshots/terraform/staging-plan.png` (Staging resource execution plan)
-- `screenshots/terraform/staging-apply.png` (Staging resources successfully provisioned)
-- `screenshots/terraform/prod-plan.png` (Production resource execution plan)
-- `screenshots/terraform/prod-apply.png` (Production multi-AZ resources successfully provisioned)
+- [`screenshots/terraform/staging-plan.png`](screenshots/terraform/staging-plan.png) — Staging resource execution plan
+- [`screenshots/terraform/staging-apply.png`](screenshots/terraform/staging-apply.png) — Staging resources successfully provisioned
+- [`screenshots/terraform/prod-plan.png`](screenshots/terraform/prod-plan.png) — Production resource execution plan
+- [`screenshots/terraform/prod-apply.png`](screenshots/terraform/prod-apply.png) — Production multi-AZ resources successfully provisioned
