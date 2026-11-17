@@ -5,7 +5,7 @@ End-to-end, production-ready DevOps implementation for building, shipping, orche
 > 📺 **Complete Video Walkthrough & Architectural Deep-Dive:**
 > A comprehensive video walkthrough explaining the entire repository from top to bottom—covering Docker hardening, CI/CD with SSM zero-downtime deploys, Terraform dual-VPC architecture, Minikube Kubernetes manifests, Prometheus/Grafana observability, and the Linux automation script:
 >
-> [![DevOps Assessment End-to-End Walkthrough](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)  
+> [![DevOps Assessment End-to-End Walkthrough](./screenshots/thumb.png)](https://youtu.be/dCzHTVFT8d4)  
 > _(Click above to watch the full project walkthrough video)_
 
 ---
